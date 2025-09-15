@@ -11,9 +11,10 @@ tailscaled --state=mem: &
 # Advertise the correct tag for our ACLs.
 tailscale up \
   --authkey=${TAILSCALE_AUTHKEY} \
-  --hostname=podpilot-agent-${HOSTNAME} \
+  --hostname=podpilot-agent-$(hostname) \
   --advertise-tags=tag:podpilot-agent \
-  --accept-routes
+  --accept-dns=false \
+  --ssh
 
 # Now that the network is up, run the main podpilot agent process
 # The agent will now be able to connect to "podpilot-hub:8080"

@@ -37,6 +37,8 @@ RUN strip ./target/release/podpilot-agent
 # --- Final Runtime Image ---
 FROM alpine:latest as agent-runtime
 
+RUN apk add --no-cache iptables
+
 # Copy agent binary to production image.
 COPY --from=agent-builder /usr/src/podpilot-agent/target/release/podpilot-agent /usr/local/bin/podpilot-agent
 
