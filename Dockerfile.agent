@@ -35,9 +35,10 @@ RUN cargo build --release --package podpilot-agent
 RUN strip ./target/release/podpilot-agent
 
 # --- Final Runtime Image ---
-FROM alpine:latest as agent-runtime
+FROM debian:12-slim as agent-runtime
 
-RUN apk add --no-cache iptables
+# Install iptables using apt-get for the new base image. --no-install-recommends keeps the image small.
+RUN apt-get update && apt-get install -y --no-install-recommends iptables && rm -rf /var/lib/apt/lists/*
 
 # Copy agent binary to production image.
 COPY --from=agent-builder /usr/src/podpilot-agent/target/release/podpilot-agent /app/podpilot-agent
@@ -50,9 +51,9 @@ COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/
 COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
 
 # Copy a startup script into the container
-# This assumes the script is in the root of your repo
 COPY ./podpilot-agent/boot.sh /app/boot.sh
 RUN chmod +x /app/boot.sh
 
 # The entrypoint is now the startup script
 CMD ["/app/boot.sh"]
+
