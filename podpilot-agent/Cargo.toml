@@ -4,4 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+chrono = "0.4.42"
+futures = "0.3.31"
 podpilot-common = { path = "../podpilot-common" }
+reqwest = { version = "0.12.23", features = ["json", "socks", "rustls-tls"] }
+tokio = { version = "1.47.1", features = ["full"] }
