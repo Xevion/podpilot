@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "podpilot-hub",
+    "podpilot-agent",
+    "podpilot-common",
+]
+resolver = "2"

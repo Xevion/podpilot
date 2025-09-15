@@ -1,0 +1,11 @@
+[package]
+name = "podpilot-common"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.99"
+fundu = "2.0.1"
+serde = { version = "1.0.219", features = ["derive"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
