@@ -1,0 +1,129 @@
+# This Dockerfile is designed for building and deploying the PodPilot Hub on Railway.
+
+# Build arguments
+ARG RUST_VERSION=1.89.0
+ARG RAILWAY_GIT_COMMIT_SHA
+
+# --- Frontend Build Stage ---
+# This stage builds the React frontend assets.
+FROM node:22-bookworm-slim AS frontend-builder
+
+# Install pnpm for package management
+RUN npm install -g pnpm
+
+WORKDIR /app
+
+# Copy workspace Cargo.toml for version info if needed
+COPY ./podpilot-hub/Cargo.toml ./podpilot-hub/Cargo.toml
+
+# Copy frontend package files from the hub's web directory
+COPY ./podpilot-hub/web/package.json ./podpilot-hub/web/pnpm-lock.yaml ./podpilot-hub/web/
+
+# Install frontend dependencies
+RUN cd podpilot-hub/web && pnpm install --frozen-lockfile
+
+# Copy frontend source code
+COPY ./podpilot-hub/web ./podpilot-hub/web
+
+# Build frontend assets
+RUN cd podpilot-hub/web && pnpm run build
+
+# --- Rust Build Stage ---
+# This stage builds the Rust backend binary.
+FROM rust:${RUST_VERSION}-bookworm AS builder
+
+# Set build-time environment variable for Railway Git commit SHA
+ENV RAILWAY_GIT_COMMIT_SHA=${RAILWAY_GIT_COMMIT_SHA}
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src/
+# Create a dummy project structure that matches the workspace for caching
+RUN USER=root cargo new --bin podpilot-hub
+WORKDIR /usr/src/podpilot-hub
+
+# Copy all dependency files from the workspace root and relevant crates
+COPY ./Cargo.toml ./Cargo.lock ./
+COPY ./podpilot-hub/Cargo.toml ./podpilot-hub/
+COPY ./podpilot-common/Cargo.toml ./podpilot-common/
+COPY ./podpilot-agent/Cargo.toml ./podpilot-agent/
+
+# Copy build script if it exists for the hub
+# COPY ./podpilot-hub/build.rs ./podpilot-hub/
+
+# Build dependencies. This layer is cached as long as Cargo files don't change.
+# Create dummy files for all workspace members to allow dependency-only build
+RUN mkdir -p ./podpilot-hub/src && echo "fn main() {}" > ./podpilot-hub/src/main.rs
+RUN mkdir -p ./podpilot-common/src && echo "pub fn hello() {}" > ./podpilot-common/src/lib.rs
+RUN mkdir -p ./podpilot-agent/src && echo "fn main() {}" > ./podpilot-agent/src/main.rs
+RUN cargo build --workspace --release
+
+# Copy the actual source code for hub and common
+RUN rm ./podpilot-hub/src/*.rs ./podpilot-common/src/*.rs
+COPY ./podpilot-hub/src ./podpilot-hub/src/
+COPY ./podpilot-common/src ./podpilot-common/src/
+
+# Copy built frontend assets into the expected location for embedding
+COPY --from=frontend-builder /app/podpilot-hub/web/dist ./podpilot-hub/web/dist
+
+# Build hub binary with embedded assets
+# Ensure stale dummy artifacts don't leak into the final build
+RUN rm -f ./target/release/deps/podpilot_hub* \
+    && rm -f ./target/release/deps/libpodpilot_common* \
+    && rm -rf ./target/release/incremental/podpilot_common-* \
+    || true
+RUN cargo clean -p podpilot-common || true
+RUN cargo build --release --package podpilot-hub
+
+# Strip the binary to reduce size
+RUN strip target/release/podpilot-hub
+
+# --- Runtime Stage ---
+# This is the final, lightweight image that will run on Railway.
+FROM debian:12-slim
+
+ARG APP=/app
+ARG APP_USER=appuser
+ARG UID=1000
+ARG GID=1000
+
+# Install runtime dependencies (ca-certificates for SSL)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    tzdata \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG TZ=Etc/UTC
+ENV TZ=${TZ}
+
+# Create a non-root user for security
+RUN addgroup --gid $GID $APP_USER \
+    && adduser --uid $UID --disabled-password --gecos "" --ingroup $APP_USER $APP_USER \
+    && mkdir -p ${APP}
+
+# Copy the compiled application binary
+COPY --from=builder --chown=$APP_USER:$APP_USER /usr/src/podpilot-hub/target/release/podpilot-hub ${APP}/podpilot-hub
+
+# Set proper permissions
+RUN chmod +x ${APP}/podpilot-hub
+
+USER $APP_USER
+WORKDIR ${APP}
+
+# Configure port from Railway's environment variable, default to 8080
+ARG PORT=8080
+ENV PORT=${PORT}
+EXPOSE ${PORT}
+
+# Railway uses this health check to verify the service is running
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT}/health || exit 1
+
+# The hub only runs the web service now.
+CMD ["./podpilot-hub"]

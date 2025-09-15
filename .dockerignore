@@ -1,0 +1,23 @@
+# Build artifacts
+target/
+**/target/
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Old Go codebase
+go/
+
+# Development configuration
+bacon.toml
+.env
+
+# Frontend build artifacts and cache
+web/node_modules/
+web/dist/
+web/.vite/
+web/.tanstack/
+web/.vscode/
+.vscode/
