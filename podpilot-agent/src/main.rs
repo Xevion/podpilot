@@ -1,6 +1,11 @@
+use axum::{Json, Router, routing::get};
 use futures::future::join_all;
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 use std::time::Duration;
+use tracing::info;
+use tracing_subscriber::{EnvFilter, fmt};
 
 // A small struct to hold the results for each device check
 struct DeviceStatus {
@@ -48,56 +53,91 @@ async fn check_device(device_name: &str, client: Client) -> DeviceStatus {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+struct StatusResponse {
+    status: String,
+    version: String,
+}
+
+async fn get_status() -> Json<StatusResponse> {
+    Json(StatusResponse {
+        status: "ok".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+    })
+}
+
 #[tokio::main]
 async fn main() {
-    let client = Client::builder()
-        .timeout(Duration::from_secs(5)) // Reduced timeout for faster checks
-        .user_agent(format!("podpilot-agent/{}", env!("CARGO_PKG_VERSION")))
-        .build()
-        .expect("Failed to create HTTP client");
+    // Initialize tracing subscriber with env filter; default to info, and verbose for reqwest/hyper
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,reqwest=trace,hyper=trace"));
+    fmt()
+        .with_env_filter(env_filter)
+        .with_target(true)
+        .compact()
+        .init();
 
-    let devices = [
-        "ether",
-        "lumine",
-        "railway",
-        "tower",
-        "seer",
-        "google-pixel-7-pro",
-        "ether-wsl",
-    ];
+    let server_task = tokio::spawn(async move {
+        let app = Router::new().route("/status", get(get_status));
+        let addr = SocketAddr::from(([0, 0, 0, 0], 8081));
+        println!("Agent API server listening on {}", addr);
 
-    println!("Starting network health check...");
+        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        axum::serve(listener, app).await.unwrap();
+    });
 
-    loop {
-        let checks = devices.iter().map(|device_name| {
-            // Spawn a new asynchronous task for each device check
-            tokio::spawn(check_device(device_name, client.clone()))
-        });
+    let health_check_task = tokio::spawn(async move {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(5)) // Reduced timeout for faster checks
+            .user_agent(format!("podpilot-agent/{}", env!("CARGO_PKG_VERSION")))
+            .build()
+            .expect("Failed to create HTTP client");
 
-        // Wait for all the spawned tasks to complete
-        let results = join_all(checks).await;
+        let devices = [
+            "ether",
+            "lumine",
+            "railway",
+            "tower",
+            "seer",
+            "google-pixel-7-pro",
+            "ether-wsl",
+        ];
 
-        println!(
-            "\n--- Network Status @ {} ---",
-            chrono::Local::now().format("%H:%M:%S")
-        );
-        for result in results {
-            match result {
-                Ok(status) => {
-                    if let Some(url) = status.reachable_url {
-                        println!("✅ {:<20} | Reachable at: {}", status.name, url);
-                    } else if let Some(err) = status.error {
-                        println!("❌ {:<20} | Error: {}", status.name, err);
+        info!("Starting network health check...");
+
+        loop {
+            let checks = devices.iter().map(|device_name| {
+                // Spawn a new asynchronous task for each device check
+                tokio::spawn(check_device(device_name, client.clone()))
+            });
+
+            // Wait for all the spawned tasks to complete
+            let results = join_all(checks).await;
+
+            info!(
+                "--- Network Status @ {} ---",
+                chrono::Local::now().format("%H:%M:%S")
+            );
+            for result in results {
+                match result {
+                    Ok(status) => {
+                        if let Some(url) = status.reachable_url {
+                            info!("✅ {:<20} | Reachable at: {}", status.name, url);
+                        } else if let Some(err) = status.error {
+                            info!("❌ {:<20} | Error: {}", status.name, err);
+                        }
+                    }
+                    Err(e) => {
+                        // This would happen if a tokio task itself panicked, which is rare.
+                        info!("Critical task error: {}", e);
                     }
                 }
-                Err(e) => {
-                    // This would happen if a tokio task itself panicked, which is rare.
-                    println!("Critical task error: {}", e);
-                }
             }
-        }
 
-        println!("Waiting 30 seconds before next check...");
-        tokio::time::sleep(Duration::from_secs(30)).await;
-    }
+            info!("Waiting 30 seconds before next check...");
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        }
+    });
+
+    let _ = tokio::join!(server_task, health_check_task);
 }

@@ -2,8 +2,14 @@
 set -e
 
 # Start the Tailscale daemon in the background in userspace mode.
-# This creates a SOCKS5 proxy on localhost port 1055 that your agent can use.
-tailscaled --tun=userspace-networking --socks5-server=localhost:1055 --outbound-http-proxy-listen=localhost:1055 &
+# This creates a HTTPS and SOCKS5 proxy on localhost port 1055 that your agent can use.
+# It also proxies the TCP ports 7860 and 8081 betwen the agent and the Tailscale network.
+tailscaled \
+  --tun=userspace-networking \
+  --socks5-server=localhost:1055 \
+  --outbound-http-proxy-listen=localhost:1055 \
+  --proxied-tcp=7860 \
+  --proxied-tcp=8081 &
 
 # Bring Tailscale up using the auth key.
 # The --accept-dns=false flag can prevent some DNS warnings.
