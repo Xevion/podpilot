@@ -21,6 +21,4 @@ tailscale up \
   --ssh
 
 echo "Tailscale is up in userspace mode. Starting PodPilot Agent..."
-
-echo "Tailscale is up. Starting PodPilot Agent..."
 ALL_PROXY=socks5://localhost:1055/ HTTP_PROXY=http://localhost:1055/ http_proxy=http://localhost:1055/ ${AGENT_BIN:-/app/podpilot-agent}

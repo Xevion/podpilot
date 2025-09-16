@@ -35,7 +35,7 @@ RUN cargo build --release --package podpilot-agent
 RUN strip ./target/release/podpilot-agent
 
 # --- Final Runtime Image ---
-FROM debian:12-slim as agent-runtime
+FROM debian:12-slim AS agent-runtime
 
 # Install iptables using apt-get for the new base image. --no-install-recommends keeps the image small.
 RUN apt-get update && apt-get install -y --no-install-recommends iptables libssl3 && rm -rf /var/lib/apt/lists/*
