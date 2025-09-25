@@ -15,6 +15,15 @@ build-hub:
     pnpm run -C web build
     cargo build --release --package podpilot-hub
 
+push-agent-image:
+    docker buildx build \
+    --platform linux/amd64 \
+    --file ./Dockerfile.agent \
+    --tag ghcr.io/xevion/podpilot-agent:latest \
+    # --tag ghcr.io/xevion/podpilot-agent:{{GIT_COMMIT_SHA}} \
+    --push \
+    .
+
 # Run auto-reloading development build with release characteristics (frontend is embedded, non-auto-reloading)
 # This is useful for testing backend release-mode details.
 dev-build-hub *ARGS='--services web --tracing pretty': build-frontend

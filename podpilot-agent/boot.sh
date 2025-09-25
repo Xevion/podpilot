@@ -15,10 +15,11 @@ tailscaled \
 # The --accept-dns=false flag can prevent some DNS warnings.
 tailscale up \
   --authkey=${TAILSCALE_AUTHKEY} \
-  --hostname=podpilot-agent-$(hostname) \
+  --hostname=podpilot-agent \
   --advertise-tags=tag:podpilot-agent \
   --accept-dns=false \
   --ssh
 
-echo "Tailscale is up in userspace mode. Starting PodPilot Agent..."
+echo "Tailscale is up."
+
 ALL_PROXY=socks5://localhost:1055/ HTTP_PROXY=http://localhost:1055/ http_proxy=http://localhost:1055/ ${AGENT_BIN:-/app/podpilot-agent}
