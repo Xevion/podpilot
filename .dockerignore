@@ -1,6 +1,13 @@
+# Git
+.git
+.gitignore
+.gitattributes
+.github
+
 # Build artifacts
 target/
 **/target/
+target/debug/
 
 # Documentation
 README.md
@@ -21,3 +28,60 @@ web/.vite/
 web/.tanstack/
 web/.vscode/
 .vscode/
+
+# IDE & Editor
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+**/*.rs.bk
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+.pytest_cache/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+
+# OS
+Thumbs.db
+
+# CI/CD files
+.travis.yml
+.gitlab-ci.yml
+azure-pipelines.yml
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Models (large files, should be mounted or downloaded at runtime)
+models/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.onnx
+
+# Test files
+*.test.js
+*.spec.js
+test/
+tests/
+__tests__/

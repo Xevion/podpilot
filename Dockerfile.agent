@@ -1,4 +1,8 @@
+# syntax=docker/dockerfile:1.4
 ARG RUST_VERSION=1.89.0
+ARG BASE_IMAGE=ghcr.io/xevion/podpilot-base:latest
+
+# --- Rust Agent Builder Stage ---
 FROM rust:${RUST_VERSION}-bookworm AS agent-builder
 
 WORKDIR /usr/src/
@@ -18,7 +22,6 @@ COPY ./podpilot-common/Cargo.toml ./podpilot-common/
 RUN mkdir -p ./podpilot-agent/src && echo "fn main() {}" > ./podpilot-agent/src/main.rs
 RUN mkdir -p ./podpilot-hub/src && echo "fn main() {}" > ./podpilot-hub/src/main.rs
 RUN mkdir -p ./podpilot-common/src && echo "pub fn hello() {}" > ./podpilot-common/src/lib.rs
-# The --workspace flag is important here
 RUN cargo build --workspace --release
 
 # Copy the actual agent source code
@@ -28,19 +31,16 @@ COPY ./podpilot-common/src ./podpilot-common/src/
 
 # Build agent binary
 RUN rm ./target/release/deps/podpilot_agent*
-# Specify the package to build
 RUN cargo build --release --package podpilot-agent
 
 # Strip the binary to reduce size
 RUN strip ./target/release/podpilot-agent
 
-# --- Final Runtime Image ---
-FROM debian:12-slim AS agent-runtime
+# --- Final Image using Base ---
+# Use pre-built base image that contains CUDA devel + Python + torch + A1111
+FROM ${BASE_IMAGE} AS final
 
-# Install iptables using apt-get for the new base image. --no-install-recommends keeps the image small.
-RUN apt-get update && apt-get install -y --no-install-recommends iptables libssl3 && rm -rf /var/lib/apt/lists/*
-
-# Copy agent binary to production image.
+# Copy agent binary from builder stage
 COPY --from=agent-builder /usr/src/podpilot-agent/target/release/podpilot-agent /app/podpilot-agent
 
 # Expose agent binary path to the runtime environment
@@ -50,7 +50,7 @@ ENV AGENT_BIN=/app/podpilot-agent
 COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled
 COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
 
-# Copy a startup script into the container
+# Copy startup script
 COPY ./podpilot-agent/boot.sh /app/boot.sh
 RUN chmod +x /app/boot.sh
 

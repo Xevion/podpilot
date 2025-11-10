@@ -1,0 +1,56 @@
+# syntax=docker/dockerfile:1.4
+FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    SHELL=/bin/bash
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    wget \
+    curl \
+    python3 \
+    python3-venv \
+    python3-pip \
+    python3-dev \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
+    iptables \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone the A1111 Repository
+WORKDIR /app
+RUN git clone --depth=1 https://github.com/AUTOMATIC1111/stable-diffusion-webui.git
+
+WORKDIR /app/stable-diffusion-webui
+
+# Install torch and xformers first with BuildKit cache mount
+# The cache mount persists pip downloads across builds, drastically reducing rebuild time
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    pip3 install torch==2.1.2+cu121 torchvision==0.16.2+cu121 \
+    --extra-index-url https://download.pytorch.org/whl/cu121 && \
+    pip3 install xformers==0.0.20
+
+# Install the rest of the A1111 requirements with BuildKit cache mount
+# This is the 1248s bottleneck that's now cached
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    pip3 install -r requirements_versions.txt
+
+# Create model directories for volume mounts
+RUN mkdir -p /app/stable-diffusion-webui/models/Stable-diffusion \
+             /app/stable-diffusion-webui/models/VAE \
+             /app/stable-diffusion-webui/models/LoRA \
+             /app/stable-diffusion-webui/models/ESRGAN \
+             /app/stable-diffusion-webui/models/Codeformer
+
+# Set environment variables
+ENV HF_HOME=/workspace/huggingface
+
+# Default command
+CMD ["/bin/bash"]
