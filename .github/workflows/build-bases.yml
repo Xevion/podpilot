@@ -107,8 +107,6 @@ jobs:
           targets: ${{ matrix.variant }}
           push: true
           set: |
-            *.cache-from=type=registry,ref=ghcr.io/xevion/podpilot/base:${{ steps.get-tag.outputs.tag }}-buildcache
-            *.cache-to=type=registry,ref=ghcr.io/xevion/podpilot/base:${{ steps.get-tag.outputs.tag }}-buildcache,mode=max
             *.attest=type=provenance,mode=max
             *.attest=type=sbom
 
