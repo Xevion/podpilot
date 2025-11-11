@@ -116,309 +116,72 @@ target "base-cu128" {
 }
 
 # ============================================
-# A1111 APPLICATION TARGETS
+# APPLICATION TARGETS (Matrix-generated)
 # ============================================
+# This target generates all 12 app variants (4 apps × 3 CUDA versions)
+# using matrix expansion. To add a new app, add an entry to the app array below.
+# To add a CUDA version, add it to the cuda array below.
 
-# A1111 - CUDA 12.1 (Legacy)
-target "a1111-cu121" {
-  dockerfile = "apps/a1111/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1",
-  ]
+target "app_matrix" {
+  name = "${app.name}-cu${cuda}"
+  matrix = {
+    app = [
+      {
+        name = "a1111"
+        dockerfile = "apps/a1111/Dockerfile"
+        version_var = "WEBUI_VERSION"
+        version = "v1.10.1"
+      },
+      {
+        name = "comfyui"
+        dockerfile = "apps/comfyui/Dockerfile"
+        version_var = "COMFYUI_VERSION"
+        version = "v0.3.68"
+      },
+      {
+        name = "fooocus"
+        dockerfile = "apps/fooocus/Dockerfile"
+        version_var = "FOOOCUS_COMMIT"
+        version = "main"
+      },
+      {
+        name = "kohya"
+        dockerfile = "apps/kohya/Dockerfile"
+        version_var = "KOHYA_VERSION"
+        version = "v24.1.7"
+      },
+    ]
+    cuda = ["121", "124", "128"]
+  }
+
+  dockerfile = app.dockerfile
+
+  # Format CUDA version: 121 -> 12.1, 124 -> 12.4, 128 -> 12.8
+  tags = concat(
+    [
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}-${APP_VERSION}",
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}",
+    ],
+    # Add :latest tag only for cu128
+    cuda == "128" ? ["${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:latest"] : []
+  )
+
   args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1"
-    WEBUI_VERSION = "v1.10.1"
-    VENV_PATH = "/workspace/venvs/a1111"
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}"
+    "${app.version_var}" = app.version
+    VENV_PATH = "/workspace/venvs/${app.name}"
     APP_VERSION = "${APP_VERSION}"
   }
+
   platforms = ["linux/amd64"]
+
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}"
   ]
+
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# A1111 - CUDA 12.4
-target "a1111-cu124" {
-  dockerfile = "apps/a1111/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.4-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.4",
-  ]
-  args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4"
-    WEBUI_VERSION = "v1.10.1"
-    VENV_PATH = "/workspace/venvs/a1111"
-    APP_VERSION = "${APP_VERSION}"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.4-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.4"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.4-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# A1111 - CUDA 12.8 (Latest)
-target "a1111-cu128" {
-  dockerfile = "apps/a1111/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:latest",
-  ]
-  args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8"
-    WEBUI_VERSION = "v1.10.1"
-    VENV_PATH = "/workspace/venvs/a1111"
-    APP_VERSION = "${APP_VERSION}"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# ============================================
-# COMFYUI APPLICATION TARGETS
-# ============================================
-
-# ComfyUI - CUDA 12.1 (Legacy)
-target "comfyui-cu121" {
-  dockerfile = "apps/comfyui/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1",
-  ]
-  args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1"
-    COMFYUI_VERSION = "v0.3.68"
-    VENV_PATH = "/workspace/venvs/comfyui"
-    APP_VERSION = "${APP_VERSION}"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# ComfyUI - CUDA 12.4
-target "comfyui-cu124" {
-  dockerfile = "apps/comfyui/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.4-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.4",
-  ]
-  args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4"
-    COMFYUI_VERSION = "v0.3.68"
-    VENV_PATH = "/workspace/venvs/comfyui"
-    APP_VERSION = "${APP_VERSION}"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.4-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.4"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.4-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# ComfyUI - CUDA 12.8 (Latest)
-target "comfyui-cu128" {
-  dockerfile = "apps/comfyui/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:latest",
-  ]
-  args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8"
-    COMFYUI_VERSION = "v0.3.68"
-    VENV_PATH = "/workspace/venvs/comfyui"
-    APP_VERSION = "${APP_VERSION}"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# ============================================
-# FOOOCUS APPLICATION TARGETS
-# ============================================
-
-# Fooocus - CUDA 12.1 (Legacy)
-target "fooocus-cu121" {
-  dockerfile = "apps/fooocus/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1",
-  ]
-  args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1"
-    FOOOCUS_COMMIT = "main"
-    VENV_PATH = "/workspace/venvs/fooocus"
-    APP_VERSION = "${APP_VERSION}"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# Fooocus - CUDA 12.4
-target "fooocus-cu124" {
-  dockerfile = "apps/fooocus/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.4-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.4",
-  ]
-  args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4"
-    FOOOCUS_COMMIT = "main"
-    VENV_PATH = "/workspace/venvs/fooocus"
-    APP_VERSION = "${APP_VERSION}"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.4-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.4"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.4-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# Fooocus - CUDA 12.8 (Latest)
-target "fooocus-cu128" {
-  dockerfile = "apps/fooocus/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:latest",
-  ]
-  args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8"
-    FOOOCUS_COMMIT = "main"
-    VENV_PATH = "/workspace/venvs/fooocus"
-    APP_VERSION = "${APP_VERSION}"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# ============================================
-# KOHYA_SS APPLICATION TARGETS
-# ============================================
-
-# Kohya_ss - CUDA 12.1 (Legacy)
-target "kohya-cu121" {
-  dockerfile = "apps/kohya/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1",
-  ]
-  args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1"
-    KOHYA_VERSION = "v24.1.7"
-    VENV_PATH = "/workspace/venvs/kohya"
-    APP_VERSION = "${APP_VERSION}"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# Kohya_ss - CUDA 12.4
-target "kohya-cu124" {
-  dockerfile = "apps/kohya/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.4-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.4",
-  ]
-  args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4"
-    KOHYA_VERSION = "v24.1.7"
-    VENV_PATH = "/workspace/venvs/kohya"
-    APP_VERSION = "${APP_VERSION}"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.4-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.4"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.4-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# Kohya_ss - CUDA 12.8 (Latest)
-target "kohya-cu128" {
-  dockerfile = "apps/kohya/Dockerfile"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:latest",
-  ]
-  args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8"
-    KOHYA_VERSION = "v24.1.7"
-    VENV_PATH = "/workspace/venvs/kohya"
-    APP_VERSION = "${APP_VERSION}"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}-buildcache,mode=max",
     "type=inline"
   ]
 }
