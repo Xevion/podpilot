@@ -1,0 +1,118 @@
+name: Build App Images
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "apps/**"
+      - "Dockerfile.base"
+      - "Dockerfile.agent-builder"
+      - "docker-bake.hcl"
+  pull_request:
+    paths:
+      - "apps/**"
+      - "Dockerfile.base"
+      - "Dockerfile.agent-builder"
+      - "docker-bake.hcl"
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: 'Apps to build (comma-separated: a1111,comfyui,fooocus,kohya or "all")'
+        required: true
+        default: "all"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  set-matrix:
+    name: Set Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.set-apps.outputs.apps }}
+    steps:
+      - name: Set apps to build
+        id: set-apps
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_APPS: ${{ inputs.apps }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$INPUT_APPS" = "all" ]; then
+              echo 'apps=["a1111","comfyui","fooocus","kohya"]' >> "$GITHUB_OUTPUT"
+            else
+              # Parse comma-separated list into JSON array using jq
+              APPS=$(echo "$INPUT_APPS" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$";"")) | map(select(. == "a1111" or . == "comfyui" or . == "fooocus" or . == "kohya"))')
+              echo "apps=$APPS" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            # For automatic triggers, build all apps
+            echo 'apps=["a1111","comfyui","fooocus","kohya"]' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Show build matrix
+        env:
+          APPS: ${{ steps.set-apps.outputs.apps }}
+        run: |
+          echo "Building apps: $APPS"
+
+  build-apps:
+    name: Build ${{ matrix.app }}
+    needs: set-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.set-matrix.outputs.apps) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build app image (with push)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          APP: ${{ matrix.app }}
+        run: |
+          docker buildx bake \
+            --set "*.cache-from=type=gha,scope=$APP" \
+            --set "*.cache-to=type=gha,mode=max,scope=$APP" \
+            --push \
+            "$APP"
+
+      - name: Build app image (PR - no push)
+        if: github.event_name != 'push' || github.ref != 'refs/heads/master'
+        env:
+          APP: ${{ matrix.app }}
+        run: |
+          docker buildx bake \
+            --set "*.cache-from=type=gha,scope=$APP" \
+            --set "*.cache-to=type=gha,mode=max,scope=$APP" \
+            "$APP"
+
+      - name: Summary
+        env:
+          APP: ${{ matrix.app }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REGISTRY_USER: ${{ github.repository_owner }}
+        run: |
+          REGISTRY_USER_LOWER="${REGISTRY_USER,,}"
+          echo "### Built $APP :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$EVENT_NAME" = "push" ] && [ "$REF" = "refs/heads/master" ]; then
+            echo "Pushed to: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot-$APP\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Build only (not pushed)" >> "$GITHUB_STEP_SUMMARY"
+          fi

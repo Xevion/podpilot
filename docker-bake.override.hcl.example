@@ -1,0 +1,31 @@
+# docker-bake.override.hcl.example
+#
+# This is an example override file for local development.
+# Copy this to docker-bake.override.hcl and customize for your needs.
+# docker-bake.override.hcl is gitignored and will be automatically loaded.
+#
+# Usage:
+#   cp docker-bake.override.hcl.example docker-bake.override.hcl
+#   # Edit docker-bake.override.hcl with your settings
+#   just bake  # Uses override automatically
+
+# Override registry for local development
+variable "REGISTRY_USER" {
+  default = "localhost:5000"
+}
+
+# Use dev versions
+variable "BASE_VERSION" {
+  default = "dev"
+}
+
+variable "APP_VERSION" {
+  default = "dev"
+}
+
+# Example: Override specific target for testing
+# target "a1111-cu128" {
+#   tags = ["localhost:5000/podpilot-a1111:test"]
+#   cache-from = ["type=local,src=/tmp/buildx-cache"]
+#   cache-to = ["type=local,dest=/tmp/buildx-cache"]
+# }

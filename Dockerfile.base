@@ -1,13 +1,20 @@
 # syntax=docker/dockerfile:1.4
-FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+
+# Accept BASE_IMAGE as build arg to support multiple CUDA versions
+ARG BASE_IMAGE=nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+FROM ${BASE_IMAGE}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=UTC \
     PYTHONUNBUFFERED=1 \
     SHELL=/bin/bash
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    software-properties-common \
+    pkg-config \
     git \
     wget \
     curl \
@@ -20,34 +27,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsm6 \
     libxrender1 \
     libxext6 \
+    libcairo2-dev \
     iptables \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone the A1111 Repository
+# Set default working directory for applications
 WORKDIR /app
-RUN git clone --depth=1 https://github.com/AUTOMATIC1111/stable-diffusion-webui.git
 
-WORKDIR /app/stable-diffusion-webui
+# Install torch and xformers with BuildKit cache mounts
+# Cache mounts persist pip downloads across builds (~2GB for torch)
+# Separate RUN layers ensure changing xformers doesn't invalidate torch layer
+# ARGs declared here to minimize layer invalidation when versions change
+ARG TORCH_VERSION=2.1.2+cu121
+ARG XFORMERS_VERSION=0.0.20
+ARG INDEX_URL=https://download.pytorch.org/whl/cu121
 
-# Install torch and xformers first with BuildKit cache mount
-# The cache mount persists pip downloads across builds, drastically reducing rebuild time
+# Install torch + torchvision + torchaudio (torchvision/torchaudio unpinned for compatibility)
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    pip3 install torch==2.1.2+cu121 torchvision==0.16.2+cu121 \
-    --extra-index-url https://download.pytorch.org/whl/cu121 && \
-    pip3 install xformers==0.0.20
+    pip3 install --no-cache-dir torch==${TORCH_VERSION} torchvision torchaudio --index-url ${INDEX_URL}
 
-# Install the rest of the A1111 requirements with BuildKit cache mount
-# This is the 1248s bottleneck that's now cached
+# Install xformers separately (changes more frequently)
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    pip3 install -r requirements_versions.txt
-
-# Create model directories for volume mounts
-RUN mkdir -p /app/stable-diffusion-webui/models/Stable-diffusion \
-             /app/stable-diffusion-webui/models/VAE \
-             /app/stable-diffusion-webui/models/LoRA \
-             /app/stable-diffusion-webui/models/ESRGAN \
-             /app/stable-diffusion-webui/models/Codeformer
+    pip3 install --no-cache-dir xformers==${XFORMERS_VERSION} --index-url ${INDEX_URL}
 
 # Set environment variables
 ENV HF_HOME=/workspace/huggingface

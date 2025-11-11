@@ -2,4 +2,4 @@
 /target
 /go/
 .cargo/config.toml
-src/scraper/README.md
+docker-bake.override.hcl
