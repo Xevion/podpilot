@@ -40,10 +40,9 @@ RUN python3 -m venv --system-site-packages ${VENV_PATH}
 ENV PATH="${VENV_PATH}/bin:$PATH"
 
 # Install Kohya_ss requirements with BuildKit cache mount
-# Kohya has specific installation steps
+# Skip requirements_linux.txt to avoid CUDA version conflicts with base image
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    pip3 install --no-cache-dir -r requirements.txt && \
-    pip3 install --no-cache-dir -r requirements_linux.txt
+    pip3 install --no-cache-dir -r requirements.txt
 
 # Install additional training dependencies
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
