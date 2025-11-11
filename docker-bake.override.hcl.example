@@ -25,7 +25,7 @@ variable "APP_VERSION" {
 
 # Example: Override specific target for testing
 # target "a1111-cu128" {
-#   tags = ["localhost:5000/podpilot-a1111:test"]
+#   tags = ["localhost:5000/podpilot/a1111:test"]
 #   cache-from = ["type=local,src=/tmp/buildx-cache"]
 #   cache-to = ["type=local,dest=/tmp/buildx-cache"]
 # }

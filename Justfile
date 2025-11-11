@@ -31,7 +31,7 @@ run-a1111:
     -e ENABLE_WEBUI=1 \
     -v podpilot-models:/app/stable-diffusion-webui/models \
     -v podpilot-hf-cache:/workspace/huggingface \
-    ghcr.io/xevion/podpilot-a1111:cu12.1
+    ghcr.io/xevion/podpilot/a1111:cu12.1
 
 # ==============================================
 # DOCKER BAKE COMMANDS (Multi-Image Builds)

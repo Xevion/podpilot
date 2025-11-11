@@ -72,7 +72,4 @@ sleep 5
 
 # Start the PodPilot agent with proxy configuration
 echo "Starting PodPilot agent API server..."
-ALL_PROXY=socks5://localhost:1055/ \
-HTTP_PROXY=http://localhost:1055/ \
-http_proxy=http://localhost:1055/ \
-${AGENT_BIN:-/app/podpilot-agent}
+ALL_PROXY=socks5://localhost:1055/ HTTP_PROXY=http://localhost:1055/ http_proxy=http://localhost:1055/ ${AGENT_BIN:-/app/podpilot-agent}

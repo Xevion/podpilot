@@ -19,11 +19,11 @@ async fn get_status() -> Json<StatusResponse> {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    // Initialize tracing subscriber with env filter; default to info, and verbose for reqwest/hyper
+    // Initialize tracing subscriber with env filter; default to warn, and trace for podpilot_agent
     let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,reqwest=trace,hyper=trace"));
+        .unwrap_or_else(|_| EnvFilter::new("warn,podpilot_agent=trace"));
 
-    fmt()
+    tracing_subscriber::fmt()
         .with_env_filter(env_filter)
         .with_target(true)
         .with_ansi(cfg!(debug_assertions))
