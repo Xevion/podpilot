@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 ARG RUST_VERSION=1.89.0
-ARG BASE_IMAGE=ghcr.io/xevion/podpilot-base:latest
+ARG BASE_IMAGE=ghcr.io/xevion/podpilot/base:latest
 
 # --- Rust Agent Builder Stage ---
 FROM rust:${RUST_VERSION}-bookworm AS agent-builder

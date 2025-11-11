@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       variant:
-        description: 'Which base images to build'
+        description: "Which base images to build"
         required: true
         type: choice
         options:
@@ -12,10 +12,10 @@ on:
           - cuda-12.1
           - cuda-12.4
           - cuda-12.8
-        default: 'all'
+        default: "all"
   schedule:
     # Weekly on Sunday at 2 AM UTC for security updates
-    - cron: '0 2 * * 0'
+    - cron: "0 2 * * 0"
 
 permissions:
   contents: read
@@ -58,23 +58,19 @@ jobs:
     name: Build ${{ matrix.variant }}
     needs: set-matrix
     runs-on: ubuntu-latest
+    outputs:
+      variant: ${{ steps.set-output.outputs.variant }}
     strategy:
       fail-fast: false
       matrix:
         variant: ${{ fromJSON(needs.set-matrix.outputs.variants) }}
 
     steps:
-      - name: Free up disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          df -h
-
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: sudo bash scripts/space.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -96,6 +92,13 @@ jobs:
             --push \
             "${VARIANT}"
 
+      - name: Set output for workflow trigger
+        id: set-output
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          echo "variant=${VARIANT}" >> "$GITHUB_OUTPUT"
+
       - name: Summary
         env:
           VARIANT: ${{ matrix.variant }}
@@ -103,4 +106,6 @@ jobs:
         run: |
           REGISTRY_USER_LOWER="${REGISTRY_USER,,}"
           echo "### Built ${VARIANT} :rocket:" >> "$GITHUB_STEP_SUMMARY"
-          echo "Registry: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot-base:*\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Registry: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot/base:*\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "This build will automatically trigger app image rebuilds for matching CUDA variants." >> "$GITHUB_STEP_SUMMARY"

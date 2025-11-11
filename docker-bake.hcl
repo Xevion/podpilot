@@ -41,8 +41,8 @@ target "agent-builder" {
 target "base-cu121" {
   dockerfile = "Dockerfile.base"
   tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.1-${BASE_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.1",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1-${BASE_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1",
   ]
   args = {
     BASE_IMAGE = "nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04"
@@ -53,11 +53,11 @@ target "base-cu121" {
   }
   platforms = ["linux/amd64"]
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.1-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.1"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1"
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.1-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -66,8 +66,8 @@ target "base-cu121" {
 target "base-cu124" {
   dockerfile = "Dockerfile.base"
   tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.4-${BASE_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.4",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4-${BASE_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4",
   ]
   args = {
     BASE_IMAGE = "nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04"
@@ -78,11 +78,11 @@ target "base-cu124" {
   }
   platforms = ["linux/amd64"]
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.4-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.4"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4"
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.4-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -91,9 +91,9 @@ target "base-cu124" {
 target "base-cu128" {
   dockerfile = "Dockerfile.base"
   tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.8-${BASE_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.8",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-base:latest",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8-${BASE_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:latest",
   ]
   args = {
     BASE_IMAGE = "nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04"
@@ -104,11 +104,11 @@ target "base-cu128" {
   }
   platforms = ["linux/amd64"]
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.8-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.8"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8"
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.8-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -124,22 +124,22 @@ target "a1111-cu121" {
     agent-builder = "target:agent-builder"
   }
   tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-a1111:cu12.1-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-a1111:cu12.1",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1",
   ]
   args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.1"
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1"
     WEBUI_VERSION = "v1.10.1"
     VENV_PATH = "/workspace/venvs/a1111"
     APP_VERSION = "${APP_VERSION}"
   }
   platforms = ["linux/amd64"]
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-a1111:cu12.1-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-a1111:cu12.1"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1"
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-a1111:cu12.1-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -151,23 +151,23 @@ target "a1111-cu128" {
     agent-builder = "target:agent-builder"
   }
   tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-a1111:cu12.8-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-a1111:cu12.8",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-a1111:latest",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:latest",
   ]
   args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.8"
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8"
     WEBUI_VERSION = "v1.10.1"
     VENV_PATH = "/workspace/venvs/a1111"
     APP_VERSION = "${APP_VERSION}"
   }
   platforms = ["linux/amd64"]
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-a1111:cu12.8-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-a1111:cu12.8"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8"
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-a1111:cu12.8-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -183,22 +183,22 @@ target "comfyui-cu121" {
     agent-builder = "target:agent-builder"
   }
   tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-comfyui:cu12.1-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-comfyui:cu12.1",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1",
   ]
   args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.1"
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1"
     COMFYUI_VERSION = "v0.3.68"
     VENV_PATH = "/workspace/venvs/comfyui"
     APP_VERSION = "${APP_VERSION}"
   }
   platforms = ["linux/amd64"]
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-comfyui:cu12.1-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-comfyui:cu12.1"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1"
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-comfyui:cu12.1-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -210,23 +210,23 @@ target "comfyui-cu128" {
     agent-builder = "target:agent-builder"
   }
   tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-comfyui:cu12.8-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-comfyui:cu12.8",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-comfyui:latest",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:latest",
   ]
   args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.8"
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8"
     COMFYUI_VERSION = "v0.3.68"
     VENV_PATH = "/workspace/venvs/comfyui"
     APP_VERSION = "${APP_VERSION}"
   }
   platforms = ["linux/amd64"]
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-comfyui:cu12.8-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-comfyui:cu12.8"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8"
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-comfyui:cu12.8-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -242,22 +242,22 @@ target "fooocus-cu121" {
     agent-builder = "target:agent-builder"
   }
   tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-fooocus:cu12.1-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-fooocus:cu12.1",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1",
   ]
   args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.1"
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1"
     FOOOCUS_COMMIT = "main"
     VENV_PATH = "/workspace/venvs/fooocus"
     APP_VERSION = "${APP_VERSION}"
   }
   platforms = ["linux/amd64"]
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-fooocus:cu12.1-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-fooocus:cu12.1"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1"
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-fooocus:cu12.1-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -269,23 +269,23 @@ target "fooocus-cu128" {
     agent-builder = "target:agent-builder"
   }
   tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-fooocus:cu12.8-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-fooocus:cu12.8",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-fooocus:latest",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:latest",
   ]
   args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.8"
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8"
     FOOOCUS_COMMIT = "main"
     VENV_PATH = "/workspace/venvs/fooocus"
     APP_VERSION = "${APP_VERSION}"
   }
   platforms = ["linux/amd64"]
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-fooocus:cu12.8-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-fooocus:cu12.8"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8"
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-fooocus:cu12.8-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -301,22 +301,22 @@ target "kohya-cu121" {
     agent-builder = "target:agent-builder"
   }
   tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-kohya:cu12.1-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-kohya:cu12.1",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1",
   ]
   args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.1"
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1"
     KOHYA_VERSION = "v24.1.7"
     VENV_PATH = "/workspace/venvs/kohya"
     APP_VERSION = "${APP_VERSION}"
   }
   platforms = ["linux/amd64"]
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-kohya:cu12.1-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-kohya:cu12.1"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1"
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-kohya:cu12.1-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -328,23 +328,23 @@ target "kohya-cu128" {
     agent-builder = "target:agent-builder"
   }
   tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-kohya:cu12.8-${APP_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-kohya:cu12.8",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot-kohya:latest",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:latest",
   ]
   args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot-base:cu12.8"
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8"
     KOHYA_VERSION = "v24.1.7"
     VENV_PATH = "/workspace/venvs/kohya"
     APP_VERSION = "${APP_VERSION}"
   }
   platforms = ["linux/amd64"]
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-kohya:cu12.8-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-kohya:cu12.8"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8"
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot-kohya:cu12.8-buildcache,mode=max",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8-buildcache,mode=max",
     "type=inline"
   ]
 }

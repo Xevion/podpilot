@@ -20,6 +20,14 @@ on:
         description: 'Apps to build (comma-separated: a1111,comfyui,fooocus,kohya or "all")'
         required: true
         default: "all"
+      cuda_variant:
+        description: 'CUDA variant filter (cu121, cu128, or "all")'
+        required: false
+        default: "all"
+  workflow_run:
+    workflows: ["Build Base Images"]
+    types: [completed]
+    branches: [master]
 
 permissions:
   contents: read
@@ -29,8 +37,10 @@ jobs:
   set-matrix:
     name: Set Build Matrix
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     outputs:
       apps: ${{ steps.set-apps.outputs.apps }}
+      cuda_variant: ${{ steps.set-cuda.outputs.cuda_variant }}
     steps:
       - name: Set apps to build
         id: set-apps
@@ -47,15 +57,33 @@ jobs:
               echo "apps=$APPS" >> "$GITHUB_OUTPUT"
             fi
           else
-            # For automatic triggers, build all apps
+            # For automatic triggers (push, PR, workflow_run), build all apps
             echo 'apps=["a1111","comfyui","fooocus","kohya"]' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set CUDA variant filter
+        id: set-cuda
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_CUDA: ${{ inputs.cuda_variant }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_CUDA" ] && [ "$INPUT_CUDA" != "all" ]; then
+            echo "cuda_variant=$INPUT_CUDA" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "workflow_run" ]; then
+            # When triggered by base build, build matching CUDA variants (cu121 and cu128, skip cu124)
+            echo "cuda_variant=all" >> "$GITHUB_OUTPUT"
+          else
+            # Default: build all CUDA variants
+            echo "cuda_variant=all" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Show build matrix
         env:
           APPS: ${{ steps.set-apps.outputs.apps }}
+          CUDA: ${{ steps.set-cuda.outputs.cuda_variant }}
         run: |
           echo "Building apps: $APPS"
+          echo "CUDA variant filter: $CUDA"
 
   build-apps:
     name: Build ${{ matrix.app }}
@@ -70,19 +98,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Free up disk space
+        run: sudo bash .github/scripts/space.sh
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_run'
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build app image (with push)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_run'
         env:
           APP: ${{ matrix.app }}
         run: |
@@ -93,7 +124,7 @@ jobs:
             "$APP"
 
       - name: Build app image (PR - no push)
-        if: github.event_name != 'push' || github.ref != 'refs/heads/master'
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/master')
         env:
           APP: ${{ matrix.app }}
         run: |
@@ -112,7 +143,10 @@ jobs:
           REGISTRY_USER_LOWER="${REGISTRY_USER,,}"
           echo "### Built $APP :rocket:" >> "$GITHUB_STEP_SUMMARY"
           if [ "$EVENT_NAME" = "push" ] && [ "$REF" = "refs/heads/master" ]; then
-            echo "Pushed to: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot-$APP\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "Pushed to: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot/$APP:*\`" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$EVENT_NAME" = "workflow_run" ]; then
+            echo "Pushed to: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot/$APP:*\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "Triggered by base image update" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Build only (not pushed)" >> "$GITHUB_STEP_SUMMARY"
           fi

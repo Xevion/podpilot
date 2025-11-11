@@ -114,6 +114,6 @@ just prune-cache             # Delete all build cache (frees disk space)
 
 If cache isn't working:
 1. Ensure `DOCKER_BUILDKIT=1` is set (required for cache mounts)
-2. Check if registry buildcache exists: `docker manifest inspect ghcr.io/xevion/podpilot-base:cu12.8-buildcache`
+2. Check if registry buildcache exists: `docker manifest inspect ghcr.io/xevion/podpilot/base:cu12.8-buildcache`
 3. Populate registry cache: `just bake-with-cache bases`
 4. Verify cache mount is working: look for `---> Using cache` in build output
