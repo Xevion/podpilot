@@ -1,5 +1,5 @@
 [workspace]
-members = ["podpilot-hub", "podpilot-agent", "podpilot-common"]
+members = ["crates/podpilot-hub", "crates/podpilot-agent", "crates/podpilot-common"]
 resolver = "2"
 
 [workspace.package]

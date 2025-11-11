@@ -3,11 +3,11 @@ default:
 
 # Auto-reloading frontend server
 frontend:
-    pnpm run -C web dev
+    pnpm run -C crates/podpilot-hub/web dev
 
 # Production build of frontend
 build-frontend:
-    pnpm run -C web build
+    pnpm run -C crates/podpilot-hub/web build
 
 # Auto-reloading backend server
 backend *ARGS:
@@ -15,7 +15,7 @@ backend *ARGS:
 
 # Production build
 build-hub:
-    pnpm run -C web build
+    pnpm run -C crates/podpilot-hub/web build
     cargo build --release --package podpilot-hub
 
 # ==============================================

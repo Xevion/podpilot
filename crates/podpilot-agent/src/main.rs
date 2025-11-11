@@ -2,7 +2,7 @@ use axum::{Json, Router, routing::get};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::process::ExitCode;
-use tracing_subscriber::{EnvFilter, fmt};
+use tracing_subscriber::EnvFilter;
 
 #[derive(Serialize, Deserialize)]
 struct StatusResponse {

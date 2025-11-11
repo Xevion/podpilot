@@ -4,18 +4,18 @@ on:
   push:
     branches: [master]
     paths:
-      - "podpilot-agent/**"
-      - "podpilot-common/**"
+      - "crates/podpilot-agent/**"
+      - "crates/podpilot-common/**"
       - "apps/**"
-      - "Dockerfile.base"
-      - "Dockerfile.agent"
+      - "docker/Dockerfile.base"
+      - "docker/Dockerfile.agent"
       - "docker-bake.hcl"
       - ".github/workflows/build-apps.yml"
   pull_request:
     paths:
       - "apps/**"
-      - "Dockerfile.base"
-      - "Dockerfile.agent"
+      - "docker/Dockerfile.base"
+      - "docker/Dockerfile.agent"
       - "docker-bake.hcl"
       - ".github/workflows/build-apps.yml"
   workflow_dispatch:
