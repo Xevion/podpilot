@@ -24,12 +24,14 @@ ENV APP_TYPE=kohya \
 
 WORKDIR /workspace
 
-# Clone Kohya_ss repository
-RUN git clone --branch ${KOHYA_VERSION} --depth=1 https://github.com/bmaltais/kohya_ss.git || \
+# Clone Kohya_ss repository with submodules
+RUN git clone --branch ${KOHYA_VERSION} --depth=1 --recurse-submodules --shallow-submodules \
+    https://github.com/bmaltais/kohya_ss.git || \
     (git clone --depth=1 https://github.com/bmaltais/kohya_ss.git && \
      cd kohya_ss && \
-     git checkout ${KOHYA_VERSION}) && \
-    rm -rf kohya_ss/.git
+     git checkout ${KOHYA_VERSION} && \
+     git submodule update --init --recursive --depth=1) && \
+    rm -rf kohya_ss/.git kohya_ss/sd-scripts/.git
 
 WORKDIR /workspace/kohya_ss
 
