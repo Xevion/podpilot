@@ -19,6 +19,6 @@ tokio = { workspace = true }
 # futures = { workspace = true }
 axum = { workspace = true, features = ["ws"] }
 # reqwest = { workspace = true, features = ["socks", "rustls-tls"] }
-# tracing = { workspace = true }
+tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
 # chrono = { workspace = true }

@@ -1616,6 +1616,7 @@ dependencies = [
  "podpilot-common",
  "serde",
  "tokio",
+ "tracing",
  "tracing-subscriber",
 ]
 

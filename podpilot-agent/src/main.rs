@@ -1,6 +1,7 @@
 use axum::{Json, Router, routing::get};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use std::process::ExitCode;
 use tracing_subscriber::{EnvFilter, fmt};
 
 #[derive(Serialize, Deserialize)]
@@ -17,12 +18,11 @@ async fn get_status() -> Json<StatusResponse> {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     // Initialize tracing subscriber with env filter; default to info, and verbose for reqwest/hyper
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info,reqwest=trace,hyper=trace"));
 
-    #[cfg(debug_assertions)]
     fmt()
         .with_env_filter(env_filter)
         .with_target(true)
@@ -30,14 +30,24 @@ async fn main() {
         .compact()
         .init();
 
-    let server_task = tokio::spawn(async move {
-        let app = Router::new().route("/status", get(get_status));
-        let addr = SocketAddr::from(([0, 0, 0, 0], 8081));
-        println!("Agent API server listening on {}", addr);
+    let app = Router::new().route("/status", get(get_status));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8081));
 
-        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-        axum::serve(listener, app).await.unwrap();
-    });
+    tracing::info!(address = %addr, "starting agent API server");
 
-    let _ = tokio::join!(server_task);
+    match tokio::net::TcpListener::bind(addr).await {
+        Ok(listener) => {
+            if let Err(error) = axum::serve(listener, app).await {
+                tracing::error!(error = ?error, "axum server error");
+                ExitCode::FAILURE
+            } else {
+                tracing::info!("axum server stopped");
+                ExitCode::SUCCESS
+            }
+        }
+        Err(error) => {
+            tracing::error!(error = ?error, "failed to bind TCP listener");
+            ExitCode::FAILURE
+        }
+    }
 }
