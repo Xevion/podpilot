@@ -4,12 +4,16 @@ df -h
 
 echo "Freeing up disk space..."
 
-# Helper function: delete directory using find (faster for large trees), fallback to rm
+# Helper function: delete directory using rm -rf (fastest for whole directory trees)
 cleanup_fast() {
     for dir in "$@"; do
         if [ -d "$dir" ]; then
-            # Try find -delete first (faster for large directories)
-            sudo find "$dir" -delete 2>/dev/null || sudo rm -rf "$dir" 2>/dev/null || true
+            # Optional: show size before deletion (enable with SHOW_SIZES=1)
+            if [ "${SHOW_SIZES:-0}" = "1" ]; then
+                size=$(du -sh "$dir" 2>/dev/null | cut -f1)
+                echo "  Removing $dir ($size)..."
+            fi
+            sudo rm -rf "$dir" 2>/dev/null || true
         fi
     done
 }
@@ -26,15 +30,22 @@ cleanup_bg /opt/hostedtoolcache
 wait
 echo "  -> $((SECONDS - batch_start))s"
 
-# Batch 2: Language toolchains and SDKs
+# Batch 2: Language toolchains and SDKs (split into sub-groups to reduce I/O contention)
 echo "Batch 2: Removing language toolchains..."
 batch_start=$SECONDS
+# Sub-group 1: Largest directories
 cleanup_bg /usr/lib/jvm
 cleanup_bg /usr/share/dotnet
+wait
+# Sub-group 2: Medium-large directories
+cleanup_bg /usr/local/lib/android
 cleanup_bg /usr/share/swift
+wait
+# Sub-group 3: Medium directories
 cleanup_bg /usr/local/.ghcup /opt/ghc
 cleanup_bg /usr/local/julia*
-cleanup_bg /usr/local/lib/android
+wait
+# Sub-group 4: Smaller directories
 cleanup_bg /usr/local/go
 cleanup_bg /usr/share/miniconda
 wait
@@ -49,13 +60,18 @@ cleanup_bg /etc/skel/.rustup /etc/skel/.cargo
 wait
 echo "  -> $((SECONDS - batch_start))s"
 
-# Batch 4: Cloud and development tools
+# Batch 4: Cloud and development tools (limit parallelization)
 echo "Batch 4: Removing cloud tools..."
 batch_start=$SECONDS
+# Sub-group 1: Azure tools
 cleanup_bg /opt/az
 cleanup_bg /usr/share/az_*
+wait
+# Sub-group 2: Other cloud/dev tools
 cleanup_bg /usr/local/aws-sam-cli
 cleanup_bg /home/linuxbrew/.linuxbrew
+wait
+# Sub-group 3: PowerShell
 cleanup_bg /usr/local/share/powershell
 wait
 echo "  -> $((SECONDS - batch_start))s"
@@ -87,11 +103,12 @@ cleanup_bg /usr/libexec/gcc/x86_64-linux-gnu/13
 wait
 echo "  -> $((SECONDS - batch_start))s"
 
-# Batch 8: Docker cleanup (can be slow, run last)
+# Batch 8: Docker cleanup (direct removal for predictable timing)
 echo "Batch 8: Cleaning Docker..."
 batch_start=$SECONDS
-docker system prune --all --force --volumes || true
-docker builder prune --all --force || true
+# Direct removal is faster and more predictable than docker system prune
+sudo rm -rf /var/lib/docker 2>/dev/null || true
+sudo systemctl restart docker 2>/dev/null || true
 echo "  -> $((SECONDS - batch_start))s"
 
 df -h
