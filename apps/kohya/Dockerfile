@@ -25,14 +25,15 @@ ENV APP_TYPE=kohya \
 WORKDIR /workspace
 
 # Clone Kohya_ss repository
-RUN git clone https://github.com/bmaltais/kohya_ss.git && \
+RUN git clone --depth=1 https://github.com/bmaltais/kohya_ss.git && \
     cd kohya_ss && \
-    git checkout ${KOHYA_VERSION}
+    git checkout ${KOHYA_VERSION} && \
+    rm -rf .git
 
 WORKDIR /workspace/kohya_ss
 
-# Create and activate venv
-RUN python3 -m venv ${VENV_PATH}
+# Create and activate venv with --system-site-packages to inherit base PyTorch/xformers
+RUN python3 -m venv --system-site-packages ${VENV_PATH}
 ENV PATH="${VENV_PATH}/bin:$PATH"
 
 # Install Kohya_ss requirements with BuildKit cache mount
@@ -50,6 +51,11 @@ RUN mkdir -p /workspace/kohya_ss/models \
              /workspace/kohya_ss/outputs \
              /workspace/kohya_ss/datasets \
              /workspace/kohya_ss/logs
+
+# Clean up to reduce image size
+RUN apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache
 
 # ============================================
 # COPY AGENT AND STARTUP SCRIPTS

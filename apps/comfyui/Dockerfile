@@ -25,14 +25,15 @@ ENV APP_TYPE=comfyui \
 WORKDIR /workspace
 
 # Clone ComfyUI repository with version pinning
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git && \
+RUN git clone --depth=1 https://github.com/comfyanonymous/ComfyUI.git && \
     cd ComfyUI && \
-    git checkout ${COMFYUI_VERSION}
+    git checkout ${COMFYUI_VERSION} && \
+    rm -rf .git
 
 WORKDIR /workspace/ComfyUI
 
-# Create and activate venv
-RUN python3 -m venv ${VENV_PATH}
+# Create and activate venv with --system-site-packages to inherit base PyTorch/xformers
+RUN python3 -m venv --system-site-packages ${VENV_PATH}
 ENV PATH="${VENV_PATH}/bin:$PATH"
 
 # Install ComfyUI requirements with BuildKit cache mount
@@ -48,6 +49,11 @@ RUN mkdir -p /workspace/ComfyUI/models/checkpoints \
              /workspace/ComfyUI/models/clip_vision \
              /workspace/ComfyUI/models/unet \
              /workspace/ComfyUI/models/embeddings
+
+# Clean up to reduce image size
+RUN apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache
 
 # ============================================
 # COPY AGENT AND STARTUP SCRIPTS

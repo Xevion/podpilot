@@ -25,14 +25,15 @@ ENV APP_TYPE=fooocus \
 WORKDIR /workspace
 
 # Clone Fooocus repository
-RUN git clone https://github.com/lllyasviel/Fooocus.git && \
+RUN git clone --depth=1 https://github.com/lllyasviel/Fooocus.git && \
     cd Fooocus && \
-    git checkout ${FOOOCUS_COMMIT}
+    git checkout ${FOOOCUS_COMMIT} && \
+    rm -rf .git
 
 WORKDIR /workspace/Fooocus
 
-# Create and activate venv
-RUN python3 -m venv ${VENV_PATH}
+# Create and activate venv with --system-site-packages to inherit base PyTorch/xformers
+RUN python3 -m venv --system-site-packages ${VENV_PATH}
 ENV PATH="${VENV_PATH}/bin:$PATH"
 
 # Install Fooocus requirements with BuildKit cache mount
@@ -48,6 +49,11 @@ RUN mkdir -p /workspace/Fooocus/models/checkpoints \
              /workspace/Fooocus/models/inpaint \
              /workspace/Fooocus/models/controlnet \
              /workspace/Fooocus/models/clip_vision
+
+# Clean up to reduce image size
+RUN apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache
 
 # ============================================
 # COPY AGENT AND STARTUP SCRIPTS
