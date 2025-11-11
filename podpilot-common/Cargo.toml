@@ -1,6 +1,6 @@
 [package]
 name = "podpilot-common"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 categories.workspace = true

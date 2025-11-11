@@ -3,6 +3,7 @@ members = ["podpilot-hub", "podpilot-agent", "podpilot-common"]
 resolver = "2"
 
 [workspace.package]
+version = "0.2.0"
 edition = "2024"
 description = "A personal management system for remote, ephemeral GPU instances used for image diffusion tasks on platforms like Vast.ai and Runpod."
 authors = ["Xevion <xevion@xevion.dev>"]

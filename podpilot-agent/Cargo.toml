@@ -1,6 +1,6 @@
 [package]
 name = "podpilot-agent"
-version = "0.2.0"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 categories.workspace = true
