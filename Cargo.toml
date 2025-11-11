@@ -1,7 +1,28 @@
 [workspace]
-members = [
-    "podpilot-hub",
-    "podpilot-agent",
-    "podpilot-common",
-]
+members = ["podpilot-hub", "podpilot-agent", "podpilot-common"]
 resolver = "2"
+
+[workspace.package]
+edition = "2024"
+authors = ["Xevion <xevion@xevion.dev>"]
+categories = ["AI", "Image Generation", "Remote Computing"]
+description = "A personal management system for remote, ephemeral GPU instances used for image diffusion tasks on platforms like Vast.ai and Runpod."
+documentation = "https://github.com/Xevion/podpilot"
+homepage = "https://github.com/Xevion/podpilot"
+keywords = ["AI", "Image Generation", "Remote Computing"]
+license = "AGPL-3.0"
+repository = "https://github.com/Xevion/podpilot"
+
+[workspace.dependencies]
+# Shared dependencies
+serde = { version = "1.0.224", features = ["derive"] }
+serde_json = "1.0.145"
+tokio = { version = "1.47.1", features = ["full"] }
+axum = "0.8.4"
+reqwest = { version = "0.12.23", features = ["json"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+chrono = "0.4.42"
+futures = "0.3.31"
+anyhow = "1.0.99"
+fundu = "2.0.1"

@@ -4,6 +4,8 @@ on:
   push:
     branches: [master]
     paths:
+      - "podpilot-agent/**"
+      - "podpilot-common/**"
       - "apps/**"
       - "Dockerfile.base"
       - "Dockerfile.agent"
