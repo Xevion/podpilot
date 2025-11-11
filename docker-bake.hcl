@@ -35,8 +35,14 @@ target "agent" {
   target = "agent"
   platforms = ["linux/amd64"]
   tags = ["${REGISTRY}/${REGISTRY_USER}/podpilot/agent:latest"]
-  cache-from = ["type=gha,scope=agent"]
-  cache-to = ["type=gha,mode=max,scope=agent"]
+  cache-from = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/agent:buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/agent:latest"
+  ]
+  cache-to = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/agent:buildcache,mode=max",
+    "type=inline"
+  ]
 }
 
 # ============================================
