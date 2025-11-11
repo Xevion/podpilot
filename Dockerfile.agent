@@ -1,35 +1,24 @@
 # syntax=docker/dockerfile:1.4
 ARG RUST_VERSION=1.89.0
 
+# --- Chef Base Stage ---
+FROM lukemathwalker/cargo-chef:latest-rust-${RUST_VERSION} AS chef
+WORKDIR /app
+
+# --- Planner Stage ---
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
 # --- Rust Agent Builder Stage ---
-FROM rust:${RUST_VERSION}-bookworm AS agent-builder
+FROM chef AS agent-builder
+COPY --from=planner /app/recipe.json recipe.json
 
-WORKDIR /usr/src/
+# Build dependencies - this layer is cached as long as dependencies don't change
+RUN cargo chef cook --release --recipe-path recipe.json
 
-# Create a dummy project structure that matches the workspace
-RUN USER=root cargo new --bin podpilot-agent
-WORKDIR /usr/src/podpilot-agent
-
-# Copy dependency files FROM THE WORKSPACE ROOT
-COPY ./Cargo.toml ./Cargo.lock ./
-COPY ./podpilot-agent/Cargo.toml ./podpilot-agent/
-COPY ./podpilot-hub/Cargo.toml ./podpilot-hub/
-COPY ./podpilot-common/Cargo.toml ./podpilot-common/
-
-# Build dependencies. This layer is cached as long as Cargo files don't change.
-# Create dummy files for all workspace members to allow dependency-only build
-RUN mkdir -p ./podpilot-agent/src && echo "fn main() {}" > ./podpilot-agent/src/main.rs
-RUN mkdir -p ./podpilot-hub/src && echo "fn main() {}" > ./podpilot-hub/src/main.rs
-RUN mkdir -p ./podpilot-common/src && echo "pub fn hello() {}" > ./podpilot-common/src/lib.rs
-RUN cargo build --workspace --release
-
-# Copy the actual agent source code
-RUN rm ./podpilot-agent/src/*.rs ./podpilot-common/src/*.rs
-COPY ./podpilot-agent/src ./podpilot-agent/src/
-COPY ./podpilot-common/src ./podpilot-common/src/
-
-# Build agent binary
-RUN rm ./target/release/deps/podpilot_agent*
+# Copy source code and build the agent binary
+COPY . .
 RUN cargo build --release --package podpilot-agent
 
 # Strip the binary to reduce size

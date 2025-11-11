@@ -61,7 +61,7 @@ RUN apt-get autoremove -y && \
 # ============================================
 
 # Copy agent binary from registry
-COPY --from=ghcr.io/xevion/podpilot/agent:latest /usr/src/podpilot-agent/target/release/podpilot-agent /app/podpilot-agent
+COPY --from=ghcr.io/xevion/podpilot/agent:latest /app/target/release/podpilot-agent /app/podpilot-agent
 
 # Copy Tailscale binaries
 COPY --from=ghcr.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled

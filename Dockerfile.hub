@@ -28,56 +28,38 @@ COPY ./podpilot-hub/web ./podpilot-hub/web
 # Build frontend assets
 RUN cd podpilot-hub/web && pnpm run build
 
+# --- Chef Base Stage ---
+FROM lukemathwalker/cargo-chef:latest-rust-${RUST_VERSION} AS chef
+WORKDIR /app
+
+# --- Planner Stage ---
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
 # --- Rust Build Stage ---
 # This stage builds the Rust backend binary.
-FROM rust:${RUST_VERSION}-bookworm AS builder
+FROM chef AS builder
 
 # Set build-time environment variable for Railway Git commit SHA
 ENV RAILWAY_GIT_COMMIT_SHA=${RAILWAY_GIT_COMMIT_SHA}
 
-# Install build dependencies
+# Copy recipe from planner and build dependencies
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Install build dependencies needed for final compilation
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /usr/src/
-# Create a dummy project structure that matches the workspace for caching
-RUN USER=root cargo new --bin podpilot-hub
-WORKDIR /usr/src/podpilot-hub
-
-# Copy all dependency files from the workspace root and relevant crates
-COPY ./Cargo.toml ./Cargo.lock ./
-COPY ./podpilot-hub/Cargo.toml ./podpilot-hub/
-COPY ./podpilot-common/Cargo.toml ./podpilot-common/
-COPY ./podpilot-agent/Cargo.toml ./podpilot-agent/
-
-# Copy build script if it exists for the hub
-# COPY ./podpilot-hub/build.rs ./podpilot-hub/
-
-# Build dependencies. This layer is cached as long as Cargo files don't change.
-# Create dummy files for all workspace members to allow dependency-only build
-RUN mkdir -p ./podpilot-hub/src && echo "fn main() {}" > ./podpilot-hub/src/main.rs
-RUN mkdir -p ./podpilot-common/src && echo "pub fn hello() {}" > ./podpilot-common/src/lib.rs
-RUN mkdir -p ./podpilot-agent/src && echo "fn main() {}" > ./podpilot-agent/src/main.rs
-RUN cargo build --workspace --release
-
-# Copy the actual source code for hub and common
-RUN rm ./podpilot-hub/src/*.rs ./podpilot-common/src/*.rs
-COPY ./podpilot-hub/src ./podpilot-hub/src/
-COPY ./podpilot-common/src ./podpilot-common/src/
-
-# Copy built frontend assets into the expected location for embedding
+# Copy source code and built frontend assets
+COPY . .
 COPY --from=frontend-builder /app/podpilot-hub/web/dist ./podpilot-hub/web/dist
 
 # Build hub binary with embedded assets
-# Ensure stale dummy artifacts don't leak into the final build
-RUN rm -f ./target/release/deps/podpilot_hub* \
-    && rm -f ./target/release/deps/libpodpilot_common* \
-    && rm -rf ./target/release/incremental/podpilot_common-* \
-    || true
-RUN cargo clean -p podpilot-common || true
 RUN cargo build --release --package podpilot-hub
 
 # Strip the binary to reduce size
@@ -108,7 +90,7 @@ RUN addgroup --gid $GID $APP_USER \
     && mkdir -p ${APP}
 
 # Copy the compiled application binary
-COPY --from=builder --chown=$APP_USER:$APP_USER /usr/src/podpilot-hub/target/release/podpilot-hub ${APP}/podpilot-hub
+COPY --from=builder --chown=$APP_USER:$APP_USER /app/target/release/podpilot-hub ${APP}/podpilot-hub
 
 # Set proper permissions
 RUN chmod +x ${APP}/podpilot-hub
