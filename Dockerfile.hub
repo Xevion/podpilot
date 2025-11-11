@@ -35,7 +35,7 @@ WORKDIR /app
 # --- Planner Stage ---
 FROM chef AS planner
 COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
+RUN cargo chef prepare --recipe-path recipe.json --bin podpilot-hub
 
 # --- Rust Build Stage ---
 # This stage builds the Rust backend binary.
@@ -46,7 +46,7 @@ ENV RAILWAY_GIT_COMMIT_SHA=${RAILWAY_GIT_COMMIT_SHA}
 
 # Copy recipe from planner and build dependencies
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json --bin podpilot-hub
 
 # Install build dependencies needed for final compilation
 RUN apt-get update && apt-get install -y \
