@@ -25,10 +25,11 @@ ENV APP_TYPE=kohya \
 WORKDIR /workspace
 
 # Clone Kohya_ss repository
-RUN git clone --depth=1 https://github.com/bmaltais/kohya_ss.git && \
-    cd kohya_ss && \
-    git checkout ${KOHYA_VERSION} && \
-    rm -rf .git
+RUN git clone --branch ${KOHYA_VERSION} --depth=1 https://github.com/bmaltais/kohya_ss.git || \
+    (git clone --depth=1 https://github.com/bmaltais/kohya_ss.git && \
+     cd kohya_ss && \
+     git checkout ${KOHYA_VERSION}) && \
+    rm -rf kohya_ss/.git
 
 WORKDIR /workspace/kohya_ss
 
@@ -61,12 +62,12 @@ RUN apt-get autoremove -y && \
 # COPY AGENT AND STARTUP SCRIPTS
 # ============================================
 
-# Copy agent binary from agent-builder context
-COPY --from=agent-builder /usr/src/podpilot-agent/target/release/podpilot-agent /app/podpilot-agent
+# Copy agent binary from registry
+COPY --from=ghcr.io/xevion/podpilot/agent:latest /usr/src/podpilot-agent/target/release/podpilot-agent /app/podpilot-agent
 
 # Copy Tailscale binaries
-COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled
-COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
+COPY --from=ghcr.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled
+COPY --from=ghcr.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
 
 # Copy shared startup script
 COPY apps/common/boot.sh /app/boot.sh

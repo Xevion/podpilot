@@ -57,12 +57,12 @@ RUN apt-get autoremove -y && \
 # INSTALL PODPILOT AGENT & TAILSCALE
 # ============================================
 
-# Copy agent binary from agent-builder context
-COPY --from=agent-builder /usr/src/podpilot-agent/target/release/podpilot-agent /app/podpilot-agent
+# Copy agent binary from registry
+COPY --from=ghcr.io/xevion/podpilot/agent:latest /usr/src/podpilot-agent/target/release/podpilot-agent /app/podpilot-agent
 
 # Copy Tailscale binaries
-COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled
-COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
+COPY --from=ghcr.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled
+COPY --from=ghcr.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
 
 # Copy shared startup script
 COPY apps/common/boot.sh /app/boot.sh

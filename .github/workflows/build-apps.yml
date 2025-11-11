@@ -6,13 +6,13 @@ on:
     paths:
       - "apps/**"
       - "Dockerfile.base"
-      - "Dockerfile.agent-builder"
+      - "Dockerfile.agent"
       - "docker-bake.hcl"
   pull_request:
     paths:
       - "apps/**"
       - "Dockerfile.base"
-      - "Dockerfile.agent-builder"
+      - "Dockerfile.agent"
       - "docker-bake.hcl"
   workflow_dispatch:
     inputs:
@@ -85,9 +85,35 @@ jobs:
           echo "Building apps: $APPS"
           echo "CUDA variant filter: $CUDA"
 
+  build-agent:
+    name: Build Agent Binary
+    needs: set-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push agent
+        run: |
+          docker buildx bake \
+            --set "agent-builder.cache-from=type=gha,scope=agent" \
+            --set "agent-builder.cache-to=type=gha,mode=max,scope=agent" \
+            --push \
+            agent-builder
+
   build-apps:
     name: Build ${{ matrix.app }}
-    needs: set-matrix
+    needs: [set-matrix, build-agent]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

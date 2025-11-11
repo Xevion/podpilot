@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1.4
 ARG RUST_VERSION=1.89.0
-ARG BASE_IMAGE=ghcr.io/xevion/podpilot/base:latest
 
 # --- Rust Agent Builder Stage ---
 FROM rust:${RUST_VERSION}-bookworm AS agent-builder
@@ -35,25 +34,3 @@ RUN cargo build --release --package podpilot-agent
 
 # Strip the binary to reduce size
 RUN strip ./target/release/podpilot-agent
-
-# --- Final Image using Base ---
-# Use pre-built base image that contains CUDA devel + Python + torch + A1111
-FROM ${BASE_IMAGE} AS final
-
-# Copy agent binary from builder stage
-COPY --from=agent-builder /usr/src/podpilot-agent/target/release/podpilot-agent /app/podpilot-agent
-
-# Expose agent binary path to the runtime environment
-ENV AGENT_BIN=/app/podpilot-agent
-
-# Copy Tailscale binaries
-COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled
-COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
-
-# Copy startup script
-COPY ./podpilot-agent/boot.sh /app/boot.sh
-RUN chmod +x /app/boot.sh
-
-# The entrypoint is now the startup script
-CMD ["/app/boot.sh"]
-

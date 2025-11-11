@@ -27,10 +27,12 @@ variable "RUST_VERSION" {
 # AGENT BUILDER (shared across all apps)
 # ============================================
 target "agent-builder" {
-  dockerfile = "Dockerfile.agent-builder"
+  dockerfile = "Dockerfile.agent"
   target = "agent-builder"
   platforms = ["linux/amd64"]
-  output = ["type=cacheonly"]
+  tags = ["${REGISTRY}/${REGISTRY_USER}/podpilot/agent:latest"]
+  cache-from = ["type=gha,scope=agent"]
+  cache-to = ["type=gha,mode=max,scope=agent"]
 }
 
 # ============================================
@@ -120,9 +122,6 @@ target "base-cu128" {
 # A1111 - CUDA 12.1 (Legacy)
 target "a1111-cu121" {
   dockerfile = "apps/a1111/Dockerfile"
-  contexts = {
-    agent-builder = "target:agent-builder"
-  }
   tags = [
     "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1-${APP_VERSION}",
     "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.1",
@@ -147,9 +146,6 @@ target "a1111-cu121" {
 # A1111 - CUDA 12.8 (Latest)
 target "a1111-cu128" {
   dockerfile = "apps/a1111/Dockerfile"
-  contexts = {
-    agent-builder = "target:agent-builder"
-  }
   tags = [
     "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8-${APP_VERSION}",
     "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.8",
@@ -179,9 +175,6 @@ target "a1111-cu128" {
 # ComfyUI - CUDA 12.1 (Legacy)
 target "comfyui-cu121" {
   dockerfile = "apps/comfyui/Dockerfile"
-  contexts = {
-    agent-builder = "target:agent-builder"
-  }
   tags = [
     "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1-${APP_VERSION}",
     "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1",
@@ -206,9 +199,6 @@ target "comfyui-cu121" {
 # ComfyUI - CUDA 12.8 (Latest)
 target "comfyui-cu128" {
   dockerfile = "apps/comfyui/Dockerfile"
-  contexts = {
-    agent-builder = "target:agent-builder"
-  }
   tags = [
     "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8-${APP_VERSION}",
     "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.8",
@@ -238,9 +228,6 @@ target "comfyui-cu128" {
 # Fooocus - CUDA 12.1 (Legacy)
 target "fooocus-cu121" {
   dockerfile = "apps/fooocus/Dockerfile"
-  contexts = {
-    agent-builder = "target:agent-builder"
-  }
   tags = [
     "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1-${APP_VERSION}",
     "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.1",
@@ -265,9 +252,6 @@ target "fooocus-cu121" {
 # Fooocus - CUDA 12.8 (Latest)
 target "fooocus-cu128" {
   dockerfile = "apps/fooocus/Dockerfile"
-  contexts = {
-    agent-builder = "target:agent-builder"
-  }
   tags = [
     "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8-${APP_VERSION}",
     "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.8",
@@ -297,9 +281,6 @@ target "fooocus-cu128" {
 # Kohya_ss - CUDA 12.1 (Legacy)
 target "kohya-cu121" {
   dockerfile = "apps/kohya/Dockerfile"
-  contexts = {
-    agent-builder = "target:agent-builder"
-  }
   tags = [
     "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1-${APP_VERSION}",
     "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1",
@@ -324,9 +305,6 @@ target "kohya-cu121" {
 # Kohya_ss - CUDA 12.8 (Latest)
 target "kohya-cu128" {
   dockerfile = "apps/kohya/Dockerfile"
-  contexts = {
-    agent-builder = "target:agent-builder"
-  }
   tags = [
     "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8-${APP_VERSION}",
     "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.8",
