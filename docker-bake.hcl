@@ -26,9 +26,9 @@ variable "RUST_VERSION" {
 # ============================================
 # AGENT BUILDER (shared across all apps)
 # ============================================
-target "agent-builder" {
+target "agent" {
   dockerfile = "Dockerfile.agent"
-  target = "agent-builder"
+  target = "agent"
   platforms = ["linux/amd64"]
   tags = ["${REGISTRY}/${REGISTRY_USER}/podpilot/agent:latest"]
   cache-from = ["type=gha,scope=agent"]
@@ -143,6 +143,30 @@ target "a1111-cu121" {
   ]
 }
 
+# A1111 - CUDA 12.4
+target "a1111-cu124" {
+  dockerfile = "apps/a1111/Dockerfile"
+  tags = [
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.4-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.4",
+  ]
+  args = {
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4"
+    WEBUI_VERSION = "v1.10.1"
+    VENV_PATH = "/workspace/venvs/a1111"
+    APP_VERSION = "${APP_VERSION}"
+  }
+  platforms = ["linux/amd64"]
+  cache-from = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.4-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.4"
+  ]
+  cache-to = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/a1111:cu12.4-buildcache,mode=max",
+    "type=inline"
+  ]
+}
+
 # A1111 - CUDA 12.8 (Latest)
 target "a1111-cu128" {
   dockerfile = "apps/a1111/Dockerfile"
@@ -192,6 +216,30 @@ target "comfyui-cu121" {
   ]
   cache-to = [
     "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.1-buildcache,mode=max",
+    "type=inline"
+  ]
+}
+
+# ComfyUI - CUDA 12.4
+target "comfyui-cu124" {
+  dockerfile = "apps/comfyui/Dockerfile"
+  tags = [
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.4-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.4",
+  ]
+  args = {
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4"
+    COMFYUI_VERSION = "v0.3.68"
+    VENV_PATH = "/workspace/venvs/comfyui"
+    APP_VERSION = "${APP_VERSION}"
+  }
+  platforms = ["linux/amd64"]
+  cache-from = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.4-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.4"
+  ]
+  cache-to = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/comfyui:cu12.4-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -249,6 +297,30 @@ target "fooocus-cu121" {
   ]
 }
 
+# Fooocus - CUDA 12.4
+target "fooocus-cu124" {
+  dockerfile = "apps/fooocus/Dockerfile"
+  tags = [
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.4-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.4",
+  ]
+  args = {
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4"
+    FOOOCUS_COMMIT = "main"
+    VENV_PATH = "/workspace/venvs/fooocus"
+    APP_VERSION = "${APP_VERSION}"
+  }
+  platforms = ["linux/amd64"]
+  cache-from = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.4-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.4"
+  ]
+  cache-to = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/fooocus:cu12.4-buildcache,mode=max",
+    "type=inline"
+  ]
+}
+
 # Fooocus - CUDA 12.8 (Latest)
 target "fooocus-cu128" {
   dockerfile = "apps/fooocus/Dockerfile"
@@ -298,6 +370,30 @@ target "kohya-cu121" {
   ]
   cache-to = [
     "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.1-buildcache,mode=max",
+    "type=inline"
+  ]
+}
+
+# Kohya_ss - CUDA 12.4
+target "kohya-cu124" {
+  dockerfile = "apps/kohya/Dockerfile"
+  tags = [
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.4-${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.4",
+  ]
+  args = {
+    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4"
+    KOHYA_VERSION = "v24.1.7"
+    VENV_PATH = "/workspace/venvs/kohya"
+    APP_VERSION = "${APP_VERSION}"
+  }
+  platforms = ["linux/amd64"]
+  cache-from = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.4-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.4"
+  ]
+  cache-to = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/kohya:cu12.4-buildcache,mode=max",
     "type=inline"
   ]
 }
@@ -352,6 +448,7 @@ group "bases" {
 group "a1111" {
   targets = [
     "a1111-cu121",
+    "a1111-cu124",
     "a1111-cu128",
   ]
 }
@@ -360,6 +457,7 @@ group "a1111" {
 group "comfyui" {
   targets = [
     "comfyui-cu121",
+    "comfyui-cu124",
     "comfyui-cu128",
   ]
 }
@@ -368,6 +466,7 @@ group "comfyui" {
 group "fooocus" {
   targets = [
     "fooocus-cu121",
+    "fooocus-cu124",
     "fooocus-cu128",
   ]
 }
@@ -376,6 +475,7 @@ group "fooocus" {
 group "kohya" {
   targets = [
     "kohya-cu121",
+    "kohya-cu124",
     "kohya-cu128",
   ]
 }
@@ -384,12 +484,16 @@ group "kohya" {
 group "apps" {
   targets = [
     "a1111-cu121",
+    "a1111-cu124",
     "a1111-cu128",
     "comfyui-cu121",
+    "comfyui-cu124",
     "comfyui-cu128",
     "fooocus-cu121",
+    "fooocus-cu124",
     "fooocus-cu128",
     "kohya-cu121",
+    "kohya-cu124",
     "kohya-cu128",
   ]
 }
@@ -401,12 +505,16 @@ group "all" {
     "base-cu124",
     "base-cu128",
     "a1111-cu121",
+    "a1111-cu124",
     "a1111-cu128",
     "comfyui-cu121",
+    "comfyui-cu124",
     "comfyui-cu128",
     "fooocus-cu121",
+    "fooocus-cu124",
     "fooocus-cu128",
     "kohya-cu121",
+    "kohya-cu124",
     "kohya-cu128",
   ]
 }

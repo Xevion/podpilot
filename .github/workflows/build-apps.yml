@@ -8,12 +8,14 @@ on:
       - "Dockerfile.base"
       - "Dockerfile.agent"
       - "docker-bake.hcl"
+      - ".github/workflows/build-apps.yml"
   pull_request:
     paths:
       - "apps/**"
       - "Dockerfile.base"
       - "Dockerfile.agent"
       - "docker-bake.hcl"
+      - ".github/workflows/build-apps.yml"
   workflow_dispatch:
     inputs:
       apps:
@@ -21,7 +23,7 @@ on:
         required: true
         default: "all"
       cuda_variant:
-        description: 'CUDA variant filter (cu121, cu128, or "all")'
+        description: 'CUDA variant filter (cu121, cu124, cu128, or "all")'
         required: false
         default: "all"
   workflow_run:
@@ -33,6 +35,10 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   set-matrix:
     name: Set Build Matrix
@@ -40,7 +46,7 @@ jobs:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     outputs:
       apps: ${{ steps.set-apps.outputs.apps }}
-      cuda_variant: ${{ steps.set-cuda.outputs.cuda_variant }}
+      cuda_variants: ${{ steps.set-cuda.outputs.cuda_variants }}
     steps:
       - name: Set apps to build
         id: set-apps
@@ -68,22 +74,19 @@ jobs:
           INPUT_CUDA: ${{ inputs.cuda_variant }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_CUDA" ] && [ "$INPUT_CUDA" != "all" ]; then
-            echo "cuda_variant=$INPUT_CUDA" >> "$GITHUB_OUTPUT"
-          elif [ "$EVENT_NAME" = "workflow_run" ]; then
-            # When triggered by base build, build matching CUDA variants (cu121 and cu128, skip cu124)
-            echo "cuda_variant=all" >> "$GITHUB_OUTPUT"
+            echo "cuda_variants=[\"$INPUT_CUDA\"]" >> "$GITHUB_OUTPUT"
           else
-            # Default: build all CUDA variants
-            echo "cuda_variant=all" >> "$GITHUB_OUTPUT"
+            # Build all three CUDA variants (cu121, cu124, cu128)
+            echo 'cuda_variants=["cu121","cu124","cu128"]' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Show build matrix
         env:
           APPS: ${{ steps.set-apps.outputs.apps }}
-          CUDA: ${{ steps.set-cuda.outputs.cuda_variant }}
+          CUDA: ${{ steps.set-cuda.outputs.cuda_variants }}
         run: |
           echo "Building apps: $APPS"
-          echo "CUDA variant filter: $CUDA"
+          echo "CUDA variants: $CUDA"
 
   build-agent:
     name: Build Agent Binary
@@ -98,27 +101,31 @@ jobs:
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_run'
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push agent
-        run: |
-          docker buildx bake \
-            --set "agent-builder.cache-from=type=gha,scope=agent" \
-            --set "agent-builder.cache-to=type=gha,mode=max,scope=agent" \
-            --push \
-            agent-builder
+        uses: docker/bake-action@v5
+        with:
+          files: docker-bake.hcl
+          targets: agent
+          push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_run' }}
+          set: |
+            agent.attest=type=provenance,mode=max
+            agent.attest=type=sbom
 
   build-apps:
-    name: Build ${{ matrix.app }}
+    name: Build ${{ matrix.app }}-${{ matrix.cuda }}
     needs: [set-matrix, build-agent]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         app: ${{ fromJSON(needs.set-matrix.outputs.apps) }}
+        cuda: ${{ fromJSON(needs.set-matrix.outputs.cuda_variants) }}
 
     steps:
       - name: Checkout repository
@@ -138,40 +145,45 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build app image (with push)
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_run'
+      - name: Get build info
+        id: build-info
         env:
           APP: ${{ matrix.app }}
+          CUDA: ${{ matrix.cuda }}
         run: |
-          docker buildx bake \
-            --set "*.cache-from=type=gha,scope=$APP" \
-            --set "*.cache-to=type=gha,mode=max,scope=$APP" \
-            --push \
-            "$APP"
+          # Map cuda variant to tag format by adding period before last digit (cu121 -> cu12.1)
+          TAG="${CUDA:0:3}.${CUDA:3:1}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Build app image (PR - no push)
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/master')
-        env:
-          APP: ${{ matrix.app }}
-        run: |
-          docker buildx bake \
-            --set "*.cache-from=type=gha,scope=$APP" \
-            --set "*.cache-to=type=gha,mode=max,scope=$APP" \
-            "$APP"
+          TARGET="${APP}-${CUDA}"  # a1111-cu121, comfyui-cu128, etc.
+          echo "target=${TARGET}" >> "$GITHUB_OUTPUT"
+
+      - name: Build app image
+        uses: docker/bake-action@v5
+        with:
+          files: docker-bake.hcl
+          targets: ${{ steps.build-info.outputs.target }}
+          push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_run' }}
+          set: |
+            *.cache-from=type=registry,ref=ghcr.io/xevion/podpilot/base:${{ steps.build-info.outputs.tag }}-buildcache
+            *.cache-to=type=registry,ref=ghcr.io/xevion/podpilot/base:${{ steps.build-info.outputs.tag }}-buildcache,mode=max
+            *.attest=type=provenance,mode=max
+            *.attest=type=sbom
 
       - name: Summary
         env:
           APP: ${{ matrix.app }}
+          CUDA: ${{ matrix.cuda }}
           EVENT_NAME: ${{ github.event_name }}
           REF: ${{ github.ref }}
           REGISTRY_USER: ${{ github.repository_owner }}
         run: |
           REGISTRY_USER_LOWER="${REGISTRY_USER,,}"
-          echo "### Built $APP :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Built ${APP}-${CUDA} :rocket:" >> "$GITHUB_STEP_SUMMARY"
           if [ "$EVENT_NAME" = "push" ] && [ "$REF" = "refs/heads/master" ]; then
-            echo "Pushed to: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot/$APP:*\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "Pushed to: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot/${APP}:*\`" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$EVENT_NAME" = "workflow_run" ]; then
-            echo "Pushed to: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot/$APP:*\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "Pushed to: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot/${APP}:*\`" >> "$GITHUB_STEP_SUMMARY"
             echo "Triggered by base image update" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Build only (not pushed)" >> "$GITHUB_STEP_SUMMARY"

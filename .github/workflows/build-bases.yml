@@ -21,6 +21,10 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   set-matrix:
     name: Set Build Matrix
@@ -82,15 +86,31 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push base image
+      - name: Get tag
+        id: get-tag
         env:
           VARIANT: ${{ matrix.variant }}
         run: |
-          docker buildx bake \
-            --set "*.cache-from=type=gha,scope=${VARIANT}" \
-            --set "*.cache-to=type=gha,mode=max,scope=${VARIANT}" \
-            --push \
-            "${VARIANT}"
+          # Extract tag from variant name (base-cu121 -> cu12.1)
+          case "$VARIANT" in
+            base-cu121) TAG="cu12.1" ;;
+            base-cu124) TAG="cu12.4" ;;
+            base-cu128) TAG="cu12.8" ;;
+          esac
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push base image
+        uses: docker/bake-action@v5
+        with:
+          files: docker-bake.hcl
+          targets: ${{ matrix.variant }}
+          push: true
+          set: |
+            *.cache-from=type=registry,ref=ghcr.io/xevion/podpilot/base:${{ steps.get-tag.outputs.tag }}-buildcache
+            *.cache-to=type=registry,ref=ghcr.io/xevion/podpilot/base:${{ steps.get-tag.outputs.tag }}-buildcache,mode=max
+            *.attest=type=provenance,mode=max
+            *.attest=type=sbom
 
       - name: Set output for workflow trigger
         id: set-output
@@ -98,14 +118,3 @@ jobs:
           VARIANT: ${{ matrix.variant }}
         run: |
           echo "variant=${VARIANT}" >> "$GITHUB_OUTPUT"
-
-      - name: Summary
-        env:
-          VARIANT: ${{ matrix.variant }}
-          REGISTRY_USER: ${{ github.repository_owner }}
-        run: |
-          REGISTRY_USER_LOWER="${REGISTRY_USER,,}"
-          echo "### Built ${VARIANT} :rocket:" >> "$GITHUB_STEP_SUMMARY"
-          echo "Registry: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot/base:*\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "This build will automatically trigger app image rebuilds for matching CUDA variants." >> "$GITHUB_STEP_SUMMARY"

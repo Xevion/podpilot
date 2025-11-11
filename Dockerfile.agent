@@ -10,8 +10,8 @@ FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
-# --- Rust Agent Builder Stage ---
-FROM chef AS agent-builder
+# --- Rust Agent Stage ---
+FROM chef AS agent
 COPY --from=planner /app/recipe.json recipe.json
 
 # Build dependencies - this layer is cached as long as dependencies don't change
