@@ -23,6 +23,10 @@ variable "RUST_VERSION" {
   default = "1.89.0"
 }
 
+variable "GIT_SHA" {
+  default = "dev"
+}
+
 # ============================================
 # AGENT BUILDER (shared across all apps)
 # ============================================
@@ -159,8 +163,16 @@ target "app_matrix" {
   # Format CUDA version: 121 -> 12.1, 124 -> 12.4, 128 -> 12.8
   tags = concat(
     [
+      # Versioned with APP_VERSION
       "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}-${APP_VERSION}",
+      # Floating CUDA-specific tag
       "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}",
+      # Explicit floating tag with CUDA version
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:latest-cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}",
+      # Upstream app version with CUDA
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:${app.version}-cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}",
+      # Git SHA with CUDA
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:${GIT_SHA}-cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}",
     ],
     # Add :latest tag only for cu128
     cuda == "128" ? ["${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:latest"] : []
