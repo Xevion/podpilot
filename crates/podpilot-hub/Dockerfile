@@ -35,8 +35,7 @@ WORKDIR /app
 # --- Planner Stage ---
 FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
-COPY crates/podpilot-hub/Cargo.toml ./crates/podpilot-hub/
-COPY crates/podpilot-common/Cargo.toml ./crates/podpilot-common/
+COPY crates ./crates
 RUN cargo chef prepare --recipe-path recipe.json --bin podpilot-hub
 
 # --- Rust Build Stage ---
@@ -59,10 +58,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy source code and built frontend assets
 COPY Cargo.toml Cargo.lock ./
-COPY crates/podpilot-hub/src ./crates/podpilot-hub/src
-COPY crates/podpilot-hub/Cargo.toml ./crates/podpilot-hub/
-COPY crates/podpilot-hub/migrations ./crates/podpilot-hub/migrations
-COPY crates/podpilot-common ./crates/podpilot-common
+COPY crates ./crates
 COPY --from=frontend-builder /app/web/dist ./crates/podpilot-hub/web/dist
 
 # Build hub binary with embedded assets
@@ -96,10 +92,7 @@ RUN addgroup --gid $GID $APP_USER \
     && mkdir -p ${APP}
 
 # Copy the compiled application binary
-COPY --from=builder --chown=$APP_USER:$APP_USER /app/target/release/podpilot-hub ${APP}/podpilot-hub
-
-# Set proper permissions
-RUN chmod +x ${APP}/podpilot-hub
+COPY --from=builder --chown=$APP_USER:$APP_USER --chmod=755 /app/target/release/podpilot-hub ${APP}/podpilot-hub
 
 USER $APP_USER
 WORKDIR ${APP}

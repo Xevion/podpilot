@@ -141,7 +141,6 @@ target "base_matrix" {
 target "agent-binary" {
   dockerfile = "crates/podpilot-agent/Dockerfile"
   context = "."
-  target = "agent"
   platforms = ["linux/amd64"]
   tags = concat(
     [

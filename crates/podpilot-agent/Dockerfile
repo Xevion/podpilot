@@ -8,8 +8,7 @@ WORKDIR /app
 # --- Planner Stage ---
 FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
-COPY crates/podpilot-agent/Cargo.toml ./crates/podpilot-agent/
-COPY crates/podpilot-common/Cargo.toml ./crates/podpilot-common/
+COPY crates ./crates
 RUN cargo chef prepare --recipe-path recipe.json --bin podpilot-agent
 
 # --- Rust Agent Stage ---
@@ -23,8 +22,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 # Copy source code
 COPY Cargo.toml Cargo.lock ./
-COPY crates/podpilot-agent ./crates/podpilot-agent
-COPY crates/podpilot-common ./crates/podpilot-common
+COPY crates ./crates
 
 # Build the agent binary
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
@@ -33,3 +31,33 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 # Strip the binary to reduce size
 RUN strip ./target/release/podpilot-agent
+
+# --- Runtime Stage ---
+FROM debian:12-slim
+
+ARG APP=/app
+ARG APP_USER=appuser
+ARG UID=1000
+ARG GID=1000
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG TZ=Etc/UTC
+ENV TZ=${TZ}
+
+# Create a non-root user for security
+RUN addgroup --gid $GID $APP_USER \
+    && adduser --uid $UID --disabled-password --gecos "" --ingroup $APP_USER $APP_USER \
+    && mkdir -p ${APP}
+
+# Copy the compiled application binary
+COPY --from=agent --chown=$APP_USER:$APP_USER --chmod=755 /app/target/release/podpilot-agent ${APP}/podpilot-agent
+
+USER $APP_USER
+WORKDIR ${APP}
+
+CMD ["./podpilot-agent"]

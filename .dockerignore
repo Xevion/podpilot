@@ -21,13 +21,16 @@ go/
 bacon.toml
 .env
 
-# Frontend build artifacts and cache
-web/node_modules/
-web/dist/
-web/.vite/
-web/.tanstack/
-web/.vscode/
+# Frontend build artifacts and cache (updated paths)
+crates/podpilot-hub/web/node_modules/
+crates/podpilot-hub/web/dist/
+crates/podpilot-hub/web/.vite/
+crates/podpilot-hub/web/.tanstack/
+crates/podpilot-hub/web/.vscode/
 .vscode/
+
+# Scripts node_modules
+scripts/node_modules/
 
 # IDE & Editor
 .idea/
