@@ -1,6 +1,8 @@
 # PodPilot
 
-A personal management system for remote, ephemeral GPU instances on Vast.ai and Runpod. Automates the repetitive setup, model management, and asset synchronization for image diffusion workloads, treating instances as cattle for rapid, reproducible, and cost-effective deployment.
+A personal management system for remote, ephemeral GPU instances on Vast.ai and Runpod.
+
+Automates the repetitive setup, model management, and asset synchronization for image diffusion workloads, treating instances as cattle for rapid, reproducible, and cost-effective deployment.
 
 ## Quick Start
 
@@ -8,7 +10,3 @@ A personal management system for remote, ephemeral GPU instances on Vast.ai and 
 just dev          # Run development environment
 just run-a1111    # Run A1111 Docker image locally
 ```
-
-## Status
-
-See [issues](https://github.com/Xevion/podpilot/issues) for current development status.
