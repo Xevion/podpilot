@@ -197,7 +197,7 @@ target "app_only_matrix" {
 
   dockerfile = app.dockerfile
   contexts = {
-    baseimage = "target:base-cu${cuda}"
+    baseimage = "docker-image://${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu${format_cuda(cuda)}"
   }
 
   tags = ["podpilot-app-${app.name}:cu${format_cuda(cuda)}"]
@@ -234,7 +234,7 @@ target "compose_static_matrix" {
 
   contexts = {
     sourceapp = "target:${app}-app-cu${cuda}"
-    agentbuild = "target:agent-binary"
+    agentbuild = "docker-image://${REGISTRY}/${REGISTRY_USER}/podpilot/agent:latest"
   }
 
   args = {
@@ -257,7 +257,7 @@ target "compose_live_matrix" {
 
   contexts = {
     sourceapp = "target:${app}-app-cu${cuda}"
-    agentbuild = "target:agent-binary"
+    agentbuild = "docker-image://${REGISTRY}/${REGISTRY_USER}/podpilot/agent:latest"
   }
 
   args = {
@@ -265,7 +265,6 @@ target "compose_live_matrix" {
   }
 
   tags = ["${REGISTRY}/${REGISTRY_USER}/podpilot/${app}:cu${format_cuda(cuda)}-live"]
-  output = ["type=docker"]
 }
 
 # ============================================
