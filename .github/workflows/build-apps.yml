@@ -7,15 +7,11 @@ on:
       - "crates/podpilot-agent/**"
       - "crates/podpilot-common/**"
       - "apps/**"
-      - "docker/Dockerfile.base"
-      - "docker/Dockerfile.agent"
       - "docker-bake.hcl"
       - ".github/workflows/build-apps.yml"
   pull_request:
     paths:
       - "apps/**"
-      - "docker/Dockerfile.base"
-      - "docker/Dockerfile.agent"
       - "docker-bake.hcl"
       - ".github/workflows/build-apps.yml"
   workflow_dispatch:

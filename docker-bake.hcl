@@ -31,7 +31,7 @@ variable "GIT_SHA" {
 # AGENT BUILDER (shared across all apps)
 # ============================================
 target "agent" {
-  dockerfile = "docker/Dockerfile.agent"
+  dockerfile = "apps/Dockerfile.agent"
   target = "agent"
   platforms = ["linux/amd64"]
   tags = ["${REGISTRY}/${REGISTRY_USER}/podpilot/agent:latest"]
@@ -51,7 +51,7 @@ target "agent" {
 
 # Base: Python 3.10 + CUDA 12.1 + PyTorch 2.1.2 (Legacy)
 target "base-cu121" {
-  dockerfile = "docker/Dockerfile.base"
+  dockerfile = "apps/Dockerfile.base"
   tags = [
     "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1-${BASE_VERSION}",
     "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1",
@@ -76,7 +76,7 @@ target "base-cu121" {
 
 # Base: Python 3.11 + CUDA 12.4 + PyTorch 2.6.0
 target "base-cu124" {
-  dockerfile = "docker/Dockerfile.base"
+  dockerfile = "apps/Dockerfile.base"
   tags = [
     "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4-${BASE_VERSION}",
     "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4",
@@ -101,7 +101,7 @@ target "base-cu124" {
 
 # Base: Python 3.12 + CUDA 12.8 + PyTorch 2.8.0 (Latest)
 target "base-cu128" {
-  dockerfile = "docker/Dockerfile.base"
+  dockerfile = "apps/Dockerfile.base"
   tags = [
     "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8-${BASE_VERSION}",
     "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8",

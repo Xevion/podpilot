@@ -1,3 +1,6 @@
+set dotenv-load := true
+set shell := ["zsh", "-cu"]
+
 default:
     just --list
 
@@ -8,6 +11,9 @@ frontend:
 # Production build of frontend
 build-frontend:
     pnpm run -C crates/podpilot-hub/web build
+
+check-scripts:
+    bun --cwd scripts/ tsc --noEmit
 
 # Auto-reloading backend server
 backend *ARGS:
@@ -22,13 +28,10 @@ build-hub:
 # DOCKER RUN COMMANDS
 # ==============================================
 
-# Run A1111 with Web UI enabled (CUDA 12.1 - for older GPUs)
-run-a1111:
-    docker run --rm -it \
-    --gpus all \
-    -p 7860:7860 \
-    -p 8081:8081 \
-    -e ENABLE_WEBUI=1 \
+# Run A1111
+run-a1111 tailscale_authkey=env_var_or_default('TAILSCALE_AUTHKEY', ''):
+    docker run --rm --gpus all -p 7860:7860 -p 8081:8081 \
+    {{ if tailscale_authkey != '' { '-e TAILSCALE_AUTHKEY=' + tailscale_authkey } else { '' } }} \
     -v podpilot-models:/app/stable-diffusion-webui/models \
     -v podpilot-hf-cache:/workspace/huggingface \
     ghcr.io/xevion/podpilot/a1111:cu12.1

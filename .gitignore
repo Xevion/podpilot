@@ -3,3 +3,4 @@
 /go/
 .cargo/config.toml
 docker-bake.override.hcl
+node_modules

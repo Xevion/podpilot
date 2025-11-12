@@ -26,8 +26,7 @@ async fn main() -> ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(env_filter)
         .with_target(true)
-        .with_ansi(cfg!(debug_assertions))
-        .compact()
+        .json()
         .init();
 
     let app = Router::new().route("/status", get(get_status));

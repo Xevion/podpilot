@@ -64,11 +64,10 @@ COPY --from=ghcr.io/xevion/podpilot/agent:latest /app/target/release/podpilot-ag
 COPY --from=ghcr.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled
 COPY --from=ghcr.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
 
-# Copy shared startup script
-COPY apps/common/boot.sh /app/boot.sh
-RUN chmod +x /app/boot.sh
+# Copy TypeScript boot scripts
+COPY scripts/ /app/scripts/
 
 # Working directory already set to /app/stable-diffusion-webui above
 
-# The entrypoint is the shared boot script
-CMD ["/app/boot.sh"]
+# The entrypoint is the TypeScript boot script
+CMD ["bun", "run", "/app/scripts/boot.ts"]

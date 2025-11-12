@@ -14,19 +14,19 @@ RUN npm install -g pnpm
 WORKDIR /app
 
 # Copy workspace Cargo.toml for version info if needed
-COPY ./crates/podpilot-hub/Cargo.toml ./crates/podpilot-hub/Cargo.toml
+COPY ./Cargo.toml ./Cargo.toml
 
 # Copy frontend package files from the hub's web directory
-COPY ./crates/podpilot-hub/web/package.json ./crates/podpilot-hub/web/pnpm-lock.yaml ./crates/podpilot-hub/web/
+COPY ./crates/podpilot-hub/web/package.json ./crates/podpilot-hub/web/pnpm-lock.yaml ./web/
 
 # Install frontend dependencies
-RUN cd crates/podpilot-hub/web && pnpm install --frozen-lockfile
+RUN pnpm -C web install --frozen-lockfile
 
 # Copy frontend source code
-COPY ./crates/podpilot-hub/web ./crates/podpilot-hub/web
+COPY ./crates/podpilot-hub/web ./web
 
 # Build frontend assets
-RUN cd crates/podpilot-hub/web && pnpm run build
+RUN pnpm -C web run build
 
 # --- Chef Base Stage ---
 FROM lukemathwalker/cargo-chef:latest-rust-${RUST_VERSION} AS chef
@@ -57,7 +57,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy source code and built frontend assets
 COPY . .
-COPY --from=frontend-builder /app/crates/podpilot-hub/web/dist ./crates/podpilot-hub/web/dist
+COPY --from=frontend-builder /app/web/dist ./crates/podpilot-hub/web/dist
 
 # Build hub binary with embedded assets
 RUN cargo build --release --package podpilot-hub
