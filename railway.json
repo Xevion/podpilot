@@ -1,0 +1,17 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "dockerfilePath": "crates/podpilot-hub/Dockerfile",
+    "watchPatterns": [
+      "crates/podpilot-hub/**",
+      "crates/podpilot-common/**",
+      "Cargo.toml",
+      "Cargo.lock",
+      "railway.json"
+    ]
+  },
+  "deploy": {
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 30
+  }
+}

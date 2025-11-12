@@ -1,9 +1,11 @@
 use axum::{
+    Json,
     Router,
     body::Body,
     extract::Request,
     http::{HeaderMap, HeaderValue, StatusCode, Uri},
     response::{Html, IntoResponse, Response},
+    routing::get,
 };
 use http::header;
 use std::time::Duration;
@@ -56,11 +58,20 @@ fn set_caching_headers(response: &mut Response, path: &str, etag: &str) {
     }
 }
 
+/// Health check endpoint for monitoring and orchestration platforms
+async fn health() -> impl IntoResponse {
+    Json(serde_json::json!({
+        "status": "ok"
+    }))
+}
+
 /// Creates the web server router
 pub fn create_router(state: AppState) -> Router {
     let api_router = Router::new().with_state(state);
 
-    let mut router = Router::new().nest("/api", api_router);
+    let mut router = Router::new()
+        .route("/health", get(health))
+        .nest("/api", api_router);
 
     if cfg!(debug_assertions) {
         router = router.layer(
