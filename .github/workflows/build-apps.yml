@@ -104,8 +104,9 @@ jobs:
           echo "Targets to build: $TARGETS"
 
           # Extract all composition targets from bake configuration
+          # Include 'bases' group so Bake can resolve base image dependencies (will use cache)
           # shellcheck disable=SC2086
-          ALL_TARGETS=$(docker buildx bake --print $TARGETS 2>/dev/null | \
+          ALL_TARGETS=$(docker buildx bake --print bases $TARGETS 2>/dev/null | \
             jq -r '.target | keys[] | select(contains("-app-") | not) | select(startswith("base-") | not) | select(startswith("agent-") | not)')
 
           # Filter targets based on changed apps (unless building all or manual dispatch)
@@ -187,7 +188,10 @@ jobs:
         uses: docker/bake-action@v5
         with:
           files: docker-bake.hcl
-          targets: ${{ matrix.target }}
+          targets: |
+            bases
+            agent-binary
+            ${{ matrix.target }}
           push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_run' }}
           set: |
             *.attest=type=provenance,mode=max
