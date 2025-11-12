@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-ARG BASE_IMAGE
-FROM ${BASE_IMAGE}
+FROM baseimage
 
 # ============================================
 # BUILD ARGUMENTS
