@@ -1,6 +1,12 @@
 name: Build Base Images
 
 on:
+  push:
+    branches:
+      - master
+    paths:
+      - "apps/Dockerfile.base"
+      - ".github/workflows/build-bases.yml"
   workflow_dispatch:
     inputs:
       variant:
