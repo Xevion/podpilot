@@ -28,112 +28,144 @@ variable "GIT_SHA" {
 }
 
 # ============================================
-# AGENT BUILDER (shared across all apps)
+# FUNCTIONS
 # ============================================
-target "agent" {
-  dockerfile = "apps/Dockerfile.agent"
-  target = "agent"
-  platforms = ["linux/amd64"]
-  tags = ["${REGISTRY}/${REGISTRY_USER}/podpilot/agent:latest"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/agent:buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/agent:latest"
+
+# Format CUDA version: 121 -> "12.1"
+function "format_cuda" {
+  params = [version]
+  result = "${substr(version, 0, 2)}.${substr(version, 2, 1)}"
+}
+
+# Generate base image tags
+function "base_tags" {
+  params = [cuda_version, is_latest]
+  result = concat(
+    [
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu${format_cuda(cuda_version)}-${BASE_VERSION}",
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu${format_cuda(cuda_version)}",
+    ],
+    is_latest ? ["${REGISTRY}/${REGISTRY_USER}/podpilot/base:latest"] : []
+  )
+}
+
+# Generate cache-from configuration
+function "cache_from" {
+  params = [name, tag]
+  result = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/${name}:${tag}-buildcache",
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/${name}:${tag}"
   ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/agent:buildcache,mode=max",
+}
+
+# Generate cache-to configuration
+function "cache_to" {
+  params = [name, tag]
+  result = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/${name}:${tag}-buildcache,mode=max",
     "type=inline"
   ]
+}
+
+# Generate app image tags for composition targets
+function "app_tags" {
+  params = [app, cuda_formatted, is_latest]
+  result = concat(
+    [
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app}:cu${cuda_formatted}-${APP_VERSION}",
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app}:cu${cuda_formatted}",
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app}:latest-cu${cuda_formatted}",
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app}:${GIT_SHA}-cu${cuda_formatted}",
+    ],
+    is_latest ? ["${REGISTRY}/${REGISTRY_USER}/podpilot/${app}:latest"] : []
+  )
 }
 
 # ============================================
 # BASE IMAGE TARGETS
 # ============================================
 
-# Base: Python 3.10 + CUDA 12.1 + PyTorch 2.1.2 (Legacy)
-target "base-cu121" {
-  dockerfile = "apps/Dockerfile.base"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1-${BASE_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1",
-  ]
-  args = {
-    BASE_IMAGE = "nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04"
-    PYTHON_VERSION = "3.10"
-    TORCH_VERSION = "2.1.2+cu121"
-    XFORMERS_VERSION = "0.0.23.post1"
-    INDEX_URL = "https://download.pytorch.org/whl/cu121"
+target "base_matrix" {
+  name = "base-cu${cuda.version}"
+  matrix = {
+    cuda = [
+      {
+        version = "121"
+        base_image = "nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04"
+        python_version = "3.10"
+        torch_version = "2.1.2+cu121"
+        xformers_version = "0.0.23.post1"
+        index_url = "https://download.pytorch.org/whl/cu121"
+        is_latest = false
+      },
+      {
+        version = "124"
+        base_image = "nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04"
+        python_version = "3.11"
+        torch_version = "2.6.0+cu124"
+        xformers_version = "0.0.29.post3"
+        index_url = "https://download.pytorch.org/whl/cu124"
+        is_latest = false
+      },
+      {
+        version = "128"
+        base_image = "nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04"
+        python_version = "3.12"
+        torch_version = "2.8.0+cu128"
+        xformers_version = "0.0.32.post2"
+        index_url = "https://download.pytorch.org/whl/cu128"
+        is_latest = true
+      },
+    ]
   }
+
+  dockerfile = "apps/Dockerfile.base"
+  tags = base_tags(cuda.version, cuda.is_latest)
+
+  args = {
+    BASE_IMAGE = cuda.base_image
+    PYTHON_VERSION = cuda.python_version
+    TORCH_VERSION = cuda.torch_version
+    XFORMERS_VERSION = cuda.xformers_version
+    INDEX_URL = cuda.index_url
+  }
+
   platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.1-buildcache,mode=max",
-    "type=inline"
-  ]
+  cache-from = cache_from("base", "cu${format_cuda(cuda.version)}")
+  cache-to = cache_to("base", "cu${format_cuda(cuda.version)}")
 }
 
-# Base: Python 3.11 + CUDA 12.4 + PyTorch 2.6.0
-target "base-cu124" {
-  dockerfile = "apps/Dockerfile.base"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4-${BASE_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4",
-  ]
-  args = {
-    BASE_IMAGE = "nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04"
-    PYTHON_VERSION = "3.11"
-    TORCH_VERSION = "2.6.0+cu124"
-    XFORMERS_VERSION = "0.0.29.post3"
-    INDEX_URL = "https://download.pytorch.org/whl/cu124"
-  }
+# ============================================
+# AGENT BUILDER (local only, used as context)
+# ============================================
+target "agent-binary" {
+  dockerfile = "crates/podpilot-agent/Dockerfile"
+  context = "."
+  target = "agent"
   platforms = ["linux/amd64"]
+  tags = concat(
+    [
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/agent:${APP_VERSION}",
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/agent:latest",
+      "${REGISTRY}/${REGISTRY_USER}/podpilot/agent:dev-${GIT_SHA}",
+    ]
+  )
   cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/agent:buildcache",
   ]
   cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.4-buildcache,mode=max",
-    "type=inline"
-  ]
-}
-
-# Base: Python 3.12 + CUDA 12.8 + PyTorch 2.8.0 (Latest)
-target "base-cu128" {
-  dockerfile = "apps/Dockerfile.base"
-  tags = [
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8-${BASE_VERSION}",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8",
-    "${REGISTRY}/${REGISTRY_USER}/podpilot/base:latest",
-  ]
-  args = {
-    BASE_IMAGE = "nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04"
-    PYTHON_VERSION = "3.12"
-    TORCH_VERSION = "2.8.0+cu128"
-    XFORMERS_VERSION = "0.0.32.post2"
-    INDEX_URL = "https://download.pytorch.org/whl/cu128"
-  }
-  platforms = ["linux/amd64"]
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8"
-  ]
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu12.8-buildcache,mode=max",
-    "type=inline"
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/agent:buildcache,mode=max",
   ]
 }
 
 # ============================================
-# APPLICATION TARGETS (Matrix-generated)
+# APP-ONLY TARGETS (local only, used as contexts)
 # ============================================
-# This target generates all 12 app variants (4 apps × 3 CUDA versions)
-# using matrix expansion. To add a new app, add an entry to the app array below.
-# To add a CUDA version, add it to the cuda array below.
+# These build just the application without agent, scripts, or Tailscale.
+# They serve as the base for composition targets.
 
-target "app_matrix" {
-  name = "${app.name}-cu${cuda}"
+target "app_only_matrix" {
+  name = "${app.name}-app-cu${cuda}"
   matrix = {
     app = [
       {
@@ -165,56 +197,81 @@ target "app_matrix" {
   }
 
   dockerfile = app.dockerfile
+  contexts = {
+    baseimage = "target:base-cu${cuda}"
+  }
 
-  # Format CUDA version: 121 -> 12.1, 124 -> 12.4, 128 -> 12.8
-  tags = concat(
-    [
-      # Versioned with APP_VERSION
-      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}-${APP_VERSION}",
-      # Floating CUDA-specific tag
-      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}",
-      # Explicit floating tag with CUDA version
-      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:latest-cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}",
-      # Upstream app version with CUDA
-      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:${app.version}-cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}",
-      # Git SHA with CUDA
-      "${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:${GIT_SHA}-cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}",
-    ],
-    # Add :latest tag only for cu128
-    cuda == "128" ? ["${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:latest"] : []
-  )
+  tags = ["podpilot-app-${app.name}:cu${format_cuda(cuda)}"]
 
   args = {
-    BASE_IMAGE = "${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}"
     "${app.version_var}" = app.version
     VENV_PATH = "/workspace/venvs/${app.name}"
     APP_VERSION = "${APP_VERSION}"
   }
 
   platforms = ["linux/amd64"]
+  output = ["type=docker"]
+}
 
-  cache-from = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}-buildcache",
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}"
-  ]
+# ============================================
+# COMPOSITION TARGETS (final images, pushed to registry)
+# ============================================
+# These combine app + agent + scripts + Tailscale into final images.
 
-  cache-to = [
-    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/${app.name}:cu${substr(cuda, 0, 2)}.${substr(cuda, 2, 1)}-buildcache,mode=max",
-    "type=inline"
-  ]
+# Base configuration for all composition targets
+target "compose_base" {
+  dockerfile = "apps/Dockerfile.compose"
+  platforms = ["linux/amd64"]
+}
+
+# Static composition (production) - 12 images total
+target "compose_static_matrix" {
+  inherits = ["compose_base"]
+  name = "${app}-cu${cuda}"
+  matrix = {
+    app = ["a1111", "comfyui", "fooocus", "kohya"]
+    cuda = ["121", "124", "128"]
+  }
+
+  contexts = {
+    sourceapp = "target:${app}-app-cu${cuda}"
+    agentbuild = "target:agent-binary"
+  }
+
+  args = {
+    AGENT_TYPE = "static"
+  }
+
+  tags = app_tags(app, format_cuda(cuda), cuda == "128")
+  cache-from = cache_from(app, "cu${format_cuda(cuda)}")
+  cache-to = cache_to(app, "cu${format_cuda(cuda)}")
+}
+
+# Live composition (development) - 12 images total (all CUDA versions supported)
+target "compose_live_matrix" {
+  inherits = ["compose_base"]
+  name = "${app}-cu${cuda}-live"
+  matrix = {
+    app = ["a1111", "comfyui", "fooocus", "kohya"]
+    cuda = ["121", "124", "128"]
+  }
+
+  contexts = {
+    sourceapp = "target:${app}-app-cu${cuda}"
+    agentbuild = "target:agent-binary"
+  }
+
+  args = {
+    AGENT_TYPE = "live"
+  }
+
+  tags = ["${REGISTRY}/${REGISTRY_USER}/podpilot/${app}:cu${format_cuda(cuda)}-live"]
+  output = ["type=docker"]
 }
 
 # ============================================
 # GROUPS
 # ============================================
-
-# Default: Quick dev build (latest versions only)
-group "default" {
-  targets = [
-    "base-cu128",
-    "a1111-cu128",
-  ]
-}
 
 # All base images
 group "bases" {
@@ -225,44 +282,13 @@ group "bases" {
   ]
 }
 
-# All A1111 variants
-group "a1111" {
-  targets = [
-    "a1111-cu121",
-    "a1111-cu124",
-    "a1111-cu128",
-  ]
+# Agent binary builder
+group "agent" {
+  targets = ["agent-binary"]
 }
 
-# All ComfyUI variants
-group "comfyui" {
-  targets = [
-    "comfyui-cu121",
-    "comfyui-cu124",
-    "comfyui-cu128",
-  ]
-}
-
-# All Fooocus variants
-group "fooocus" {
-  targets = [
-    "fooocus-cu121",
-    "fooocus-cu124",
-    "fooocus-cu128",
-  ]
-}
-
-# All Kohya variants
-group "kohya" {
-  targets = [
-    "kohya-cu121",
-    "kohya-cu124",
-    "kohya-cu128",
-  ]
-}
-
-# All application images (assumes bases exist)
-group "apps" {
+# All static composition targets (production)
+group "static" {
   targets = [
     "a1111-cu121",
     "a1111-cu124",
@@ -279,23 +305,12 @@ group "apps" {
   ]
 }
 
-# Everything
-group "all" {
+# Live composition targets (for development, cu121 only by default)
+group "live" {
   targets = [
-    "base-cu121",
-    "base-cu124",
-    "base-cu128",
-    "a1111-cu121",
-    "a1111-cu124",
-    "a1111-cu128",
-    "comfyui-cu121",
-    "comfyui-cu124",
-    "comfyui-cu128",
-    "fooocus-cu121",
-    "fooocus-cu124",
-    "fooocus-cu128",
-    "kohya-cu121",
-    "kohya-cu124",
-    "kohya-cu128",
+    "a1111-cu121-live",
+    "comfyui-cu121-live",
+    "fooocus-cu121-live",
+    "kohya-cu121-live",
   ]
 }

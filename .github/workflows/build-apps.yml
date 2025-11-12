@@ -11,19 +11,17 @@ on:
       - ".github/workflows/build-apps.yml"
   pull_request:
     paths:
+      - "crates/podpilot-agent/**"
+      - "crates/podpilot-common/**"
       - "apps/**"
       - "docker-bake.hcl"
       - ".github/workflows/build-apps.yml"
   workflow_dispatch:
     inputs:
-      apps:
-        description: 'Apps to build (comma-separated: a1111,comfyui,fooocus,kohya or "all")'
-        required: true
-        default: "all"
-      cuda_variant:
-        description: 'CUDA variant filter (cu121, cu124, cu128, or "all")'
+      targets:
+        description: "Comma-delimited groups (static,live) or specific targets (a1111-cu121,comfyui-cu128-live)"
         required: false
-        default: "all"
+        default: "static,live"
   workflow_run:
     workflows: ["Build Base Images"]
     types: [completed]
@@ -38,53 +36,97 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-changes:
+    name: Detect Changed Apps
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    permissions:
+      pull-requests: read
+    outputs:
+      changed_apps: ${{ steps.filter.outputs.changes }}
+      build_all: ${{ steps.filter.outputs.common }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            common:
+              - 'crates/podpilot-agent/**'
+              - 'crates/podpilot-common/**'
+              - 'apps/Dockerfile.base'
+              - 'apps/Dockerfile.compose'
+              - 'docker-bake.hcl'
+              - '.github/workflows/build-apps.yml'
+            a1111:
+              - 'apps/a1111/**'
+            comfyui:
+              - 'apps/comfyui/**'
+            fooocus:
+              - 'apps/fooocus/**'
+            kohya:
+              - 'apps/kohya/**'
+
   set-matrix:
     name: Set Build Matrix
+    needs: detect-changes
+    if: always() && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     outputs:
-      apps: ${{ steps.set-apps.outputs.apps }}
-      cuda_variants: ${{ steps.set-cuda.outputs.cuda_variants }}
+      matrix: ${{ steps.generate-matrix.outputs.matrix }}
     steps:
-      - name: Set apps to build
-        id: set-apps
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate build matrix
+        id: generate-matrix
         env:
           EVENT_NAME: ${{ github.event_name }}
-          INPUT_APPS: ${{ inputs.apps }}
+          INPUT_TARGETS: ${{ inputs.targets }}
+          CHANGED_APPS: ${{ needs.detect-changes.outputs.changed_apps }}
+          BUILD_ALL: ${{ needs.detect-changes.outputs.build_all }}
         run: |
+          # Determine which targets/groups to build
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            if [ "$INPUT_APPS" = "all" ]; then
-              echo 'apps=["a1111","comfyui","fooocus","kohya"]' >> "$GITHUB_OUTPUT"
+            # Parse comma-separated targets input, remove whitespace, deduplicate
+            TARGETS=$(echo "$INPUT_TARGETS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sort -u | paste -sd ' ')
+          else
+            # Build both static and live groups for push/workflow_run
+            TARGETS="static live"
+          fi
+
+          echo "Targets to build: $TARGETS"
+
+          # Extract all composition targets from bake configuration
+          # shellcheck disable=SC2086
+          ALL_TARGETS=$(docker buildx bake --print $TARGETS 2>/dev/null | \
+            jq -r '.target | keys[] | select(contains("-app-") | not) | select(startswith("base-") | not) | select(startswith("agent-") | not)')
+
+          # Filter targets based on changed apps (unless building all or manual dispatch)
+          if [ "$EVENT_NAME" != "workflow_dispatch" ] && [ "$BUILD_ALL" != "true" ] && [ -n "$CHANGED_APPS" ] && [ "$CHANGED_APPS" != "[]" ]; then
+            echo "Filtering targets by changed apps: $CHANGED_APPS"
+            MATRIX=$(echo "$ALL_TARGETS" | jq -R -s -c --argjson apps "$CHANGED_APPS" \
+              '[split("\n") | .[] | select(length > 0) | select(. as $target | $apps | map(. + "-") | any(. as $prefix | $target | startswith($prefix)))] | {include: map({target: .})}')
+          else
+            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "Manual dispatch: building specified targets"
+            elif [ "$BUILD_ALL" = "true" ]; then
+              echo "Common files changed: building all targets"
             else
-              # Parse comma-separated list into JSON array using jq
-              APPS=$(echo "$INPUT_APPS" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$";"")) | map(select(. == "a1111" or . == "comfyui" or . == "fooocus" or . == "kohya"))')
-              echo "apps=$APPS" >> "$GITHUB_OUTPUT"
+              echo "Building all targets (no app-specific changes detected)"
             fi
-          else
-            # For automatic triggers (push, PR, workflow_run), build all apps
-            echo 'apps=["a1111","comfyui","fooocus","kohya"]' >> "$GITHUB_OUTPUT"
+            MATRIX=$(echo "$ALL_TARGETS" | jq -R -s -c '[split("\n") | .[] | select(length > 0)] | {include: map({target: .})}')
           fi
 
-      - name: Set CUDA variant filter
-        id: set-cuda
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_CUDA: ${{ inputs.cuda_variant }}
-        run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_CUDA" ] && [ "$INPUT_CUDA" != "all" ]; then
-            echo "cuda_variants=[\"$INPUT_CUDA\"]" >> "$GITHUB_OUTPUT"
-          else
-            # Build all three CUDA variants (cu121, cu124, cu128)
-            echo 'cuda_variants=["cu121","cu124","cu128"]' >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Show build matrix
-        env:
-          APPS: ${{ steps.set-apps.outputs.apps }}
-          CUDA: ${{ steps.set-cuda.outputs.cuda_variants }}
-        run: |
-          echo "Building apps: $APPS"
-          echo "CUDA variants: $CUDA"
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "Generated matrix:"
+          echo "$MATRIX" | jq .
 
   build-agent:
     name: Build Agent Binary
@@ -109,21 +151,19 @@ jobs:
         uses: docker/bake-action@v5
         with:
           files: docker-bake.hcl
-          targets: agent
+          targets: agent-binary
           push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_run' }}
           set: |
-            agent.attest=type=provenance,mode=max
-            agent.attest=type=sbom
+            agent-binary.attest=type=provenance,mode=max
+            agent-binary.attest=type=sbom
 
   build-apps:
-    name: Build ${{ matrix.app }}-${{ matrix.cuda }}
+    name: Build ${{ matrix.target }}
     needs: [set-matrix, build-agent]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        app: ${{ fromJSON(needs.set-matrix.outputs.apps) }}
-        cuda: ${{ fromJSON(needs.set-matrix.outputs.cuda_variants) }}
+      matrix: ${{ fromJSON(needs.set-matrix.outputs.matrix) }}
 
     steps:
       - name: Checkout repository
@@ -143,24 +183,11 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get build info
-        id: build-info
-        env:
-          APP: ${{ matrix.app }}
-          CUDA: ${{ matrix.cuda }}
-        run: |
-          # Map cuda variant to tag format by adding period before last digit (cu121 -> cu12.1)
-          TAG="${CUDA:0:3}.${CUDA:3:1}"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-
-          TARGET="${APP}-${CUDA}"  # a1111-cu121, comfyui-cu128, etc.
-          echo "target=${TARGET}" >> "$GITHUB_OUTPUT"
-
       - name: Build app image
         uses: docker/bake-action@v5
         with:
           files: docker-bake.hcl
-          targets: ${{ steps.build-info.outputs.target }}
+          targets: ${{ matrix.target }}
           push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_run' }}
           set: |
             *.attest=type=provenance,mode=max
@@ -168,14 +195,17 @@ jobs:
 
       - name: Summary
         env:
-          APP: ${{ matrix.app }}
-          CUDA: ${{ matrix.cuda }}
+          TARGET: ${{ matrix.target }}
           EVENT_NAME: ${{ github.event_name }}
           REF: ${{ github.ref }}
           REGISTRY_USER: ${{ github.repository_owner }}
         run: |
           REGISTRY_USER_LOWER="${REGISTRY_USER,,}"
-          echo "### Built ${APP}-${CUDA} :rocket:" >> "$GITHUB_STEP_SUMMARY"
+
+          # Extract app name from target (everything before -cu)
+          APP=$(echo "$TARGET" | sed -E 's/-cu[0-9]+.*//')
+
+          echo "### Built ${TARGET} :rocket:" >> "$GITHUB_STEP_SUMMARY"
           if [ "$EVENT_NAME" = "push" ] && [ "$REF" = "refs/heads/master" ]; then
             echo "Pushed to: \`ghcr.io/${REGISTRY_USER_LOWER}/podpilot/${APP}:*\`" >> "$GITHUB_STEP_SUMMARY"
           elif [ "$EVENT_NAME" = "workflow_run" ]; then

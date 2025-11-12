@@ -1,30 +1,15 @@
 #!/usr/bin/env bun
 
-/**
- * PodPilot Agent Boot Script
- * Main entrypoint for all PodPilot application Docker images.
- *
- * This script orchestrates the startup sequence:
- * 1. Load and validate configuration
- * 2. Start Tailscale daemon
- * 3. Wait for Tailscale readiness
- * 4. Connect to Tailscale network (if auth key provided)
- * 5. Launch application based on APP_TYPE
- * 6. Wait for application readiness
- * 7. Start PodPilot agent
- * 8. Keep all processes running
- */
-
 import { logger } from "./lib/logger";
 import { loadConfig } from "./lib/config";
 import { initializeTailscale } from "./lib/tailscale";
 import { launchApp } from "./lib/apps";
-import { startAgent } from "./lib/agent";
+import { ensureAgent, startAgent } from "./lib/agent";
 
 async function main(): Promise<void> {
   logger.info("PodPilot Agent boot script starting");
 
-  // Step 1: Load and validate configuration
+  // Load and validate configuration
   logger.debug("Loading configuration from environment");
   const configResult = loadConfig();
 
@@ -43,7 +28,7 @@ async function main(): Promise<void> {
     hasAuthKey: !!config.tailscale.authKey,
   });
 
-  // Step 2-4: Initialize Tailscale (daemon + optional network connection)
+  // Initialize Tailscale (daemon + optional network connection)
   const tailscaleResult = await initializeTailscale(
     config.tailscale.authKey,
     config.tailscale.hostname,
@@ -60,7 +45,7 @@ async function main(): Promise<void> {
   const tailscaleProc = tailscaleResult.value;
   logger.info("Tailscale initialized successfully", { pid: tailscaleProc.pid });
 
-  // Step 5-6: Launch application and wait for readiness
+  // Launch application and wait for readiness
   const appResult = await launchApp(config.appType);
 
   if (appResult.isErr) {
@@ -77,8 +62,21 @@ async function main(): Promise<void> {
     pid: appProc.pid,
   });
 
-  // Step 7: Start PodPilot agent
-  const agentResult = startAgent(config.agentBin);
+  // Ensure agent binary is available
+  const agentPathResult = await ensureAgent(config);
+
+  if (agentPathResult.isErr) {
+    logger.error("Agent acquisition failed", {
+      error: agentPathResult.error,
+      source: config.agent.source,
+    });
+    process.exit(1);
+  }
+
+  const agentPath = agentPathResult.value;
+
+  // Start PodPilot agent
+  const agentResult = startAgent(agentPath);
 
   if (agentResult.isErr) {
     logger.error("Agent startup failed", {
@@ -90,7 +88,7 @@ async function main(): Promise<void> {
   const agentProc = agentResult.value;
   logger.info("Agent started successfully", { pid: agentProc.pid });
 
-  // Step 8: Keep processes running and handle signals
+  // Keep processes running and handle signals
   logger.info("Boot sequence complete - all processes running");
   logger.info("Process IDs", {
     tailscale: tailscaleProc.pid,
@@ -162,9 +160,11 @@ async function main(): Promise<void> {
     }
   });
 
-  // Wait for agent process to exit (it should run indefinitely)
+  // Wait for agent process to exit (should run indefinitely)
   const agentExitCode = await agentProc.exited;
-  logger.error("Agent process exited unexpectedly", { exitCode: agentExitCode });
+  logger.error("Agent process exited unexpectedly", {
+    exitCode: agentExitCode,
+  });
   process.exit(agentExitCode);
 }
 

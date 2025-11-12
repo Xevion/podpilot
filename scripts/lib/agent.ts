@@ -6,6 +6,8 @@
 import { Result } from "true-myth";
 import { logger } from "./logger";
 import { spawnBackground } from "./process";
+import { downloadFile, fileExists } from "./download";
+import type { Config } from "./config";
 
 export class AgentError extends Error {
   constructor(
@@ -14,6 +16,80 @@ export class AgentError extends Error {
   ) {
     super(message);
     this.name = "AgentError";
+  }
+}
+
+/**
+ * Ensure the agent binary is available.
+ * Supports three modes:
+ * - embedded: Verify binary exists at expected path (production)
+ * - download: Download binary from R2/remote URL (dev)
+ * - local: Use local binary from volume mount (local dev)
+ */
+export async function ensureAgent(config: Config): Promise<Result<string, AgentError>> {
+  const { binPath, source, downloadUrl } = config.agent;
+
+  logger.info("Ensuring agent binary is available", { source, binPath });
+
+  switch (source) {
+    case "embedded": {
+      // Check if embedded binary exists
+      const exists = await fileExists(binPath);
+      if (!exists) {
+        return Result.err(
+          new AgentError(`Embedded agent binary not found at ${binPath}`)
+        );
+      }
+      logger.info("Embedded agent binary verified", { binPath });
+      return Result.ok(binPath);
+    }
+
+    case "local": {
+      // Validate local path exists
+      const exists = await fileExists(binPath);
+      if (!exists) {
+        return Result.err(
+          new AgentError(`Local agent binary not found at ${binPath}`)
+        );
+      }
+      logger.info("Local agent binary verified", { binPath });
+      return Result.ok(binPath);
+    }
+
+    case "download": {
+      if (!downloadUrl) {
+        return Result.err(
+          new AgentError("AGENT_DOWNLOAD_URL must be set when AGENT_SOURCE is 'download'")
+        );
+      }
+
+      // Check if already downloaded
+      const exists = await fileExists(binPath);
+      if (exists) {
+        logger.info("Agent binary already downloaded", { binPath });
+        return Result.ok(binPath);
+      }
+
+      // Download the agent binary
+      logger.info("Downloading agent binary", { url: downloadUrl, destination: binPath });
+      const downloadResult = await downloadFile(downloadUrl, binPath);
+
+      if (downloadResult.isErr) {
+        return Result.err(
+          new AgentError(
+            `Failed to download agent: ${downloadResult.error.message}`,
+            downloadResult.error
+          )
+        );
+      }
+
+      logger.info("Agent binary downloaded successfully", { binPath });
+      return Result.ok(binPath);
+    }
+
+    default: {
+      return Result.err(new AgentError(`Unknown agent source: ${source}`));
+    }
   }
 }
 

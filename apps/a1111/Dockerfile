@@ -15,8 +15,7 @@ ARG APP_VERSION
 # ============================================
 ENV APP_TYPE=a1111 \
     VENV_PATH=${VENV_PATH} \
-    TEMPLATE_VERSION=${APP_VERSION} \
-    AGENT_BIN=/app/podpilot-agent
+    TEMPLATE_VERSION=${APP_VERSION}
 
 # ============================================
 # INSTALL A1111
@@ -52,22 +51,3 @@ RUN mkdir -p models/Stable-diffusion \
 RUN apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache
-
-# ============================================
-# INSTALL PODPILOT AGENT & TAILSCALE
-# ============================================
-
-# Copy agent binary from registry
-COPY --from=ghcr.io/xevion/podpilot/agent:latest /app/target/release/podpilot-agent /app/podpilot-agent
-
-# Copy Tailscale binaries
-COPY --from=ghcr.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled
-COPY --from=ghcr.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
-
-# Copy TypeScript boot scripts
-COPY scripts/ /app/scripts/
-
-# Working directory already set to /app/stable-diffusion-webui above
-
-# The entrypoint is the TypeScript boot script
-CMD ["bun", "run", "/app/scripts/boot.ts"]

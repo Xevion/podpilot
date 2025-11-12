@@ -1,5 +1,5 @@
 set dotenv-load := true
-set shell := ["zsh", "-cu"]
+set shell := ["fish", "-c"]
 
 default:
     just --list
@@ -34,7 +34,23 @@ run-a1111 tailscale_authkey=env_var_or_default('TAILSCALE_AUTHKEY', ''):
     {{ if tailscale_authkey != '' { '-e TAILSCALE_AUTHKEY=' + tailscale_authkey } else { '' } }} \
     -v podpilot-models:/app/stable-diffusion-webui/models \
     -v podpilot-hf-cache:/workspace/huggingface \
-    ghcr.io/xevion/podpilot/a1111:cu12.1
+    "ghcr.io/xevion/podpilot/a1111:cu12.1"
+
+# Run ComfyUI
+run-comfyui tailscale_authkey=env_var_or_default('TAILSCALE_AUTHKEY', ''):
+    docker run --rm --gpus all -p 8188:8188 -p 8189:8189 \
+    {{ if tailscale_authkey != '' { '-e TAILSCALE_AUTHKEY=' + tailscale_authkey } else { '' } }} \
+    -v podpilot-models:/app/models \
+    -v podpilot-comfyui-cache:/workspace/comfyui \
+    "ghcr.io/xevion/podpilot/comfyui:cu12.1"
+
+# Run Fooocus
+run-fooocus tailscale_authkey=env_var_or_default('TAILSCALE_AUTHKEY', ''):
+    docker run --rm --gpus all -p 7860:7860 -p 8081:8081 \
+    {{ if tailscale_authkey != '' { '-e TAILSCALE_AUTHKEY=' + tailscale_authkey } else { '' } }} \
+    -v podpilot-models:/app/models \
+    -v podpilot-hf-cache:/workspace/huggingface \
+    "ghcr.io/xevion/podpilot/fooocus:cu12.1"
 
 # ==============================================
 # DOCKER BAKE COMMANDS (Multi-Image Builds)

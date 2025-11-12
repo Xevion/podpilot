@@ -1,0 +1,39 @@
+# Composition Dockerfile - Combines app + agent + runtime components
+# This Dockerfile uses Docker Bake contexts to reference:
+#   - sourceapp: The base application image (a1111, comfyui, fooocus, kohya)
+#   - agentbuild: The agent binary builder image
+#
+# Build args:
+#   - AGENT_TYPE: 'static' (embed agent) or 'live' (runtime download)
+
+ARG AGENT_TYPE=static
+
+# Import the application image from context
+FROM sourceapp as app-stage
+
+# Import the agent builder image from context
+FROM agentbuild as agent-stage
+
+# Static variant - includes embedded agent binary
+FROM app-stage as variant-static
+COPY --from=agent-stage /app/target/release/podpilot-agent /app/podpilot-agent
+ENV AGENT_SOURCE=embedded
+
+# Live variant - no agent binary (runtime download)
+FROM app-stage as variant-live
+ENV AGENT_SOURCE=download
+ENV AGENT_DOWNLOAD_URL=""
+
+# Select the appropriate variant based on AGENT_TYPE arg
+FROM variant-${AGENT_TYPE} as final
+
+# Add Tailscale binaries for secure agent-hub communication
+COPY --from=tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled
+COPY --from=tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
+
+# Add boot scripts (Bun/TypeScript orchestration layer)
+COPY scripts/ /app/scripts/
+
+# Set working directory and entrypoint
+WORKDIR /app
+CMD ["bun", "run", "/app/scripts/boot.ts"]
