@@ -7,7 +7,9 @@ WORKDIR /app
 
 # --- Planner Stage ---
 FROM chef AS planner
-COPY . .
+COPY Cargo.toml Cargo.lock ./
+COPY crates/podpilot-agent/Cargo.toml ./crates/podpilot-agent/
+COPY crates/podpilot-common/Cargo.toml ./crates/podpilot-common/
 RUN cargo chef prepare --recipe-path recipe.json --bin podpilot-agent
 
 # --- Rust Agent Stage ---
@@ -20,7 +22,10 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo chef cook --release --recipe-path recipe.json --bin podpilot-agent
 
 # Copy source code
-COPY . .
+COPY Cargo.toml Cargo.lock ./
+COPY crates/podpilot-agent ./crates/podpilot-agent
+COPY crates/podpilot-common ./crates/podpilot-common
+
 # Build the agent binary
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
