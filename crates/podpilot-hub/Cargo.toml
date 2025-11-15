@@ -14,8 +14,9 @@ repository.workspace = true
 [dependencies]
 podpilot-common = { path = "../podpilot-common" }
 anyhow = { workspace = true }
-axum = { workspace = true }
+axum = { workspace = true, features = ["ws"] }
 chrono = { workspace = true, features = ["serde"] }
+futures-util = { workspace = true }
 # fundu = { workspace = true }
 # futures = { workspace = true }
 reqwest = { workspace = true, features = ["cookies"] }

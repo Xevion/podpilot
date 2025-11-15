@@ -11,6 +11,7 @@ mod data;
 mod signals;
 mod state;
 mod web;
+mod ws;
 
 #[tokio::main]
 async fn main() -> ExitCode {

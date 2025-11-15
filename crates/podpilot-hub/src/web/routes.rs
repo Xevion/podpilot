@@ -22,6 +22,9 @@ use crate::{
     web::assets::{WebAssets, get_asset_metadata_cached},
 };
 
+// Import WebSocket handler from ws module
+use crate::ws::agent_websocket_handler;
+
 /// Set appropriate caching headers based on asset type
 fn set_caching_headers(response: &mut Response, path: &str, etag: &str) {
     let headers = response.headers_mut();
@@ -67,11 +70,13 @@ async fn health() -> impl IntoResponse {
 
 /// Creates the web server router
 pub fn create_router(state: AppState) -> Router {
-    let api_router = Router::new().with_state(state);
+    let api_router = Router::new().with_state(state.clone());
 
     let mut router = Router::new()
         .route("/health", get(health))
-        .nest("/api", api_router);
+        .route("/ws/agent", get(agent_websocket_handler))
+        .nest("/api", api_router)
+        .with_state(state);
 
     if cfg!(debug_assertions) {
         router = router.layer(
