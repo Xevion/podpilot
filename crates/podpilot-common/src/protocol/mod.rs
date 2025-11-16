@@ -1,3 +1,6 @@
 pub mod messages;
 
-pub use messages::{AgentMessage, HubMessage, RegisterRequest, RegisterResponse};
+pub use messages::{
+    AgentMessage, HeartbeatAckMessage, HeartbeatMessage, HubMessage, RegisterRequest,
+    RegisterResponse,
+};

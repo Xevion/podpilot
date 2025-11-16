@@ -2,28 +2,22 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::types::{AgentStatus, GpuInfo, ProviderType};
-
-// =============================================================================
-// Agent → Hub Messages
-// =============================================================================
+use crate::types::{GpuInfo, ProviderType};
 
 /// Messages sent from Agent to Hub
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AgentMessage {
     Register(RegisterRequest),
+    HeartbeatAck(HeartbeatAckMessage),
 }
-
-// =============================================================================
-// Hub → Agent Messages
-// =============================================================================
 
 /// Messages sent from Hub to Agent
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum HubMessage {
     RegisterAck(RegisterResponse),
+    Heartbeat(HeartbeatMessage),
     Error {
         message: String,
         code: String,
@@ -31,10 +25,6 @@ pub enum HubMessage {
         correlation_id: Option<Uuid>,
     },
 }
-
-// =============================================================================
-// Registration Message Types
-// =============================================================================
 
 /// Agent registration request
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,4 +46,19 @@ pub struct RegisterResponse {
     pub agent_id: Uuid,
     pub registered_at: DateTime<Utc>,
     pub hub_version: String,
+}
+
+/// Heartbeat ping from Hub to Agent
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeartbeatMessage {
+    pub correlation_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub sequence: u64,
+}
+
+/// Heartbeat acknowledgment from Agent to Hub
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeartbeatAckMessage {
+    pub correlation_id: Uuid,
+    pub timestamp: DateTime<Utc>,
 }

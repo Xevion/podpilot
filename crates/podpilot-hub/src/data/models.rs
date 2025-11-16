@@ -3,10 +3,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::types::Json;
 use uuid::Uuid;
 
-// =============================================================================
-// Enums
-// =============================================================================
-
 /// Cloud provider or platform type for agent instances
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type, Serialize, Deserialize)]
 #[sqlx(type_name = "provider_type", rename_all = "lowercase")]
@@ -40,10 +36,6 @@ pub enum ModelType {
     Embedding,
     Vae,
 }
-
-// =============================================================================
-// Structs
-// =============================================================================
 
 /// Remote GPU agent instance
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]

@@ -1,52 +1,143 @@
 use axum::{Json, Router, routing::get};
+use podpilot_agent::{config::Config, gpu, ws::WsClient};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::process::ExitCode;
+use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Serialize, Deserialize)]
 struct StatusResponse {
     status: String,
     version: String,
+    hub_connected: bool,
 }
 
 async fn get_status() -> Json<StatusResponse> {
     Json(StatusResponse {
         status: "ok".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        hub_connected: false, // TODO: Track actual connection status
     })
 }
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    // Initialize tracing subscriber with env filter; default to warn, and trace for podpilot_agent
+    // Load configuration
+    let config = match Config::load() {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Failed to load configuration: {}", e);
+            return ExitCode::FAILURE;
+        }
+    };
+
+    // Initialize logging based on config
     let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("warn,podpilot_agent=trace"));
+        .unwrap_or_else(|_| EnvFilter::new(&config.log_level));
 
     tracing_subscriber::fmt()
         .with_env_filter(env_filter)
         .with_target(true)
         .json()
+        .flatten_event(true)
         .init();
 
+    info!(
+        version = env!("CARGO_PKG_VERSION"),
+        hub_url = %config.hub_url,
+        provider = ?config.provider,
+        "starting podpilot-agent"
+    );
+
+    // Detect GPU information
+    let gpu_info = gpu::detect_gpu();
+    info!(
+        gpu_name = %gpu_info.name,
+        memory_gb = gpu_info.memory_gb,
+        cuda_version = %gpu_info.cuda_version,
+        "GPU detected"
+    );
+
+    // Create WebSocket client
+    let ws_client = WsClient::new(
+        config.hub_url.clone(),
+        config.provider,
+        config.provider_instance_id.clone(),
+        config.get_hostname(),
+        gpu_info.clone(),
+        config.tailscale_ip.clone(),
+    );
+
+    // Spawn WebSocket client task
+    let ws_handle = {
+        let ws_client = ws_client.clone();
+        tokio::spawn(async move {
+            if let Err(e) = ws_client.run().await {
+                error!("WebSocket client error: {}", e);
+            }
+        })
+    };
+
+    // Create and run status API server
     let app = Router::new().route("/status", get(get_status));
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8081));
+    let addr = SocketAddr::from(([0, 0, 0, 0], config.status_port));
 
-    tracing::info!(address = %addr, "starting agent API server");
+    info!(address = %addr, "starting status API server");
 
-    match tokio::net::TcpListener::bind(addr).await {
+    let result = match tokio::net::TcpListener::bind(addr).await {
         Ok(listener) => {
-            if let Err(error) = axum::serve(listener, app).await {
-                tracing::error!(error = ?error, "axum server error");
+            // Run server with graceful shutdown
+            if let Err(error) = axum::serve(listener, app)
+                .with_graceful_shutdown(shutdown_signal())
+                .await
+            {
+                error!(error = ?error, "status API server error");
                 ExitCode::FAILURE
             } else {
-                tracing::info!("axum server stopped");
+                info!("status API server stopped gracefully");
                 ExitCode::SUCCESS
             }
         }
         Err(error) => {
-            tracing::error!(error = ?error, "failed to bind TCP listener");
+            error!(error = ?error, "failed to bind TCP listener");
             ExitCode::FAILURE
+        }
+    };
+
+    // Shutdown WebSocket client
+    info!("Shutting down WebSocket client");
+    ws_client.shutdown();
+    let _ = ws_handle.await;
+
+    result
+}
+
+/// Wait for SIGTERM or SIGINT signal for graceful shutdown
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            info!("Received Ctrl+C signal");
+        }
+        _ = terminate => {
+            info!("Received terminate signal");
         }
     }
 }

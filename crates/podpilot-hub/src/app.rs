@@ -69,9 +69,29 @@ impl App {
     /// Run the application: start Axum and handle graceful shutdown signals
     pub async fn run(self) -> ExitCode {
         use crate::signals::shutdown_signal;
+        use crate::ws::{cleanup_task, heartbeat_sender_task};
+        use std::sync::Arc;
+        use std::sync::atomic::AtomicBool;
 
         let router = create_router(self.state.clone());
         let addr = SocketAddr::from(([0, 0, 0, 0], self.config.port));
+
+        // Spawn background tasks
+        let shutdown_flag = Arc::new(AtomicBool::new(false));
+
+        let heartbeat_state = self.state.clone();
+        let heartbeat_shutdown = shutdown_flag.clone();
+        tokio::spawn(async move {
+            heartbeat_sender_task(heartbeat_state, heartbeat_shutdown).await;
+        });
+
+        let cleanup_state = self.state.clone();
+        let cleanup_shutdown = shutdown_flag.clone();
+        tokio::spawn(async move {
+            cleanup_task(cleanup_state, cleanup_shutdown).await;
+        });
+
+        info!("Background tasks spawned (heartbeat sender, cleanup)");
 
         tracing::info!(address = %addr, "starting axum web server");
 

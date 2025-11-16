@@ -3,7 +3,8 @@ use axum::extract::State;
 use axum::response::Response;
 use futures_util::{SinkExt, StreamExt};
 use podpilot_common::protocol::{AgentMessage, HubMessage, RegisterRequest, RegisterResponse};
-use tracing::{error, info, warn};
+use tokio::sync::mpsc;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -20,26 +21,51 @@ pub async fn agent_websocket_handler(
 async fn handle_agent_socket(socket: WebSocket, state: AppState) {
     info!("New WebSocket connection from agent");
 
-    let (mut sender, mut receiver) = socket.split();
+    let (mut ws_sender, mut ws_receiver) = socket.split();
 
     // Wait for registration message with timeout
-    let agent_id = match wait_for_registration(&mut receiver, &mut sender, &state).await {
+    let agent_id = match wait_for_registration(&mut ws_receiver, &mut ws_sender, &state).await {
         Ok(id) => {
             info!("Agent {} registered successfully", id);
             id
         }
         Err(e) => {
             error!("Registration failed: {}", e);
-            let _ = sender.close().await;
+            let _ = ws_sender.close().await;
             return;
         }
     };
 
     info!("Agent {} connection established", agent_id);
 
-    // For now, just keep the connection open
-    // In the next phase, we'll add heartbeat handling and message routing
-    while let Some(msg_result) = receiver.next().await {
+    // Create channel for sending outbound messages to this agent
+    let (outbound_tx, mut outbound_rx) = mpsc::channel::<HubMessage>(32);
+
+    // Register connection in AppState
+    state.register_connection(agent_id, outbound_tx);
+
+    // Spawn task to handle outbound messages (Hub -> Agent)
+    let mut ws_sender_task = ws_sender;
+    let outbound_task = tokio::spawn(async move {
+        while let Some(message) = outbound_rx.recv().await {
+            let json = match serde_json::to_string(&message) {
+                Ok(j) => j,
+                Err(e) => {
+                    error!("Failed to serialize outbound message: {}", e);
+                    continue;
+                }
+            };
+
+            if let Err(e) = ws_sender_task.send(Message::Text(json.into())).await {
+                error!("Failed to send message to WebSocket: {}", e);
+                break;
+            }
+        }
+        ws_sender_task
+    });
+
+    // Handle inbound messages (Agent -> Hub)
+    while let Some(msg_result) = ws_receiver.next().await {
         match msg_result {
             Ok(Message::Close(_)) => {
                 info!("Agent {} closed connection", agent_id);
@@ -49,7 +75,9 @@ async fn handle_agent_socket(socket: WebSocket, state: AppState) {
                 // WebSocket library auto-responds to pings
             }
             Ok(Message::Text(text)) => {
-                warn!("Unexpected text message from agent {}: {}", agent_id, text);
+                if let Err(e) = handle_agent_message(&state, agent_id, &text).await {
+                    warn!("Error handling message from agent {}: {}", agent_id, e);
+                }
             }
             Ok(_) => {}
             Err(e) => {
@@ -59,7 +87,12 @@ async fn handle_agent_socket(socket: WebSocket, state: AppState) {
         }
     }
 
-    info!("Agent {} disconnected", agent_id);
+    // Cleanup on disconnect
+    state.remove_connection(&agent_id);
+    info!("Agent {} disconnected and removed from registry", agent_id);
+
+    // Abort outbound task and retrieve sender for cleanup
+    outbound_task.abort();
 }
 
 /// Wait for and process the registration message
@@ -111,7 +144,48 @@ async fn wait_for_registration(
 
             Ok(agent_id)
         }
+        AgentMessage::HeartbeatAck(_) => {
+            Err(anyhow!("Unexpected HeartbeatAck during registration"))
+        }
     }
+}
+
+/// Handle incoming agent messages
+async fn handle_agent_message(
+    state: &AppState,
+    agent_id: Uuid,
+    text: &str,
+) -> anyhow::Result<()> {
+    let agent_msg: AgentMessage = serde_json::from_str(text)?;
+
+    match agent_msg {
+        AgentMessage::HeartbeatAck(ack) => {
+            debug!(
+                "Received heartbeat ack from agent {} (correlation: {})",
+                agent_id, ack.correlation_id
+            );
+
+            // Update last_seen_at in database
+            sqlx::query(
+                r#"
+                UPDATE agents
+                SET last_seen_at = NOW()
+                WHERE id = $1
+                "#,
+            )
+            .bind(agent_id)
+            .execute(&state.db)
+            .await?;
+        }
+        AgentMessage::Register(_) => {
+            warn!(
+                "Received unexpected Register message from already-registered agent {}",
+                agent_id
+            );
+        }
+    }
+
+    Ok(())
 }
 
 /// Create agent record in the database
