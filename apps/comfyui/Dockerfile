@@ -2,23 +2,13 @@
 
 FROM baseimage
 
-# ============================================
-# BUILD ARGUMENTS
-# ============================================
 ARG COMFYUI_VERSION
 ARG VENV_PATH
 ARG APP_VERSION
 
-# ============================================
-# ENVIRONMENT VARIABLES
-# ============================================
 ENV APP_TYPE=comfyui \
     VENV_PATH=${VENV_PATH} \
     TEMPLATE_VERSION=${APP_VERSION}
-
-# ============================================
-# INSTALL COMFYUI
-# ============================================
 
 WORKDIR /workspace
 

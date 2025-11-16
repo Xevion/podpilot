@@ -27,6 +27,10 @@ variable "GIT_SHA" {
   default = "dev"
 }
 
+variable "USE_LOCAL_BASE" {
+  default = ""
+}
+
 # ============================================
 # FUNCTIONS
 # ============================================
@@ -197,7 +201,7 @@ target "app_only_matrix" {
 
   dockerfile = app.dockerfile
   contexts = {
-    baseimage = "docker-image://${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu${format_cuda(cuda)}"
+    baseimage = USE_LOCAL_BASE != "" ? "target:base-cu${cuda}" : "docker-image://${REGISTRY}/${REGISTRY_USER}/podpilot/base:cu${format_cuda(cuda)}"
   }
 
   tags = ["podpilot-app-${app.name}:cu${format_cuda(cuda)}"]

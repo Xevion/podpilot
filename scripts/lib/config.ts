@@ -6,7 +6,6 @@
 import { Result } from "true-myth";
 
 export type AppType = "a1111" | "comfyui" | "fooocus" | "kohya";
-export type AgentSource = "embedded" | "download" | "local";
 
 export interface Config {
   appType: AppType;
@@ -15,11 +14,7 @@ export interface Config {
     hostname: string;
     tags: string;
   };
-  agent: {
-    binPath: string;
-    source: AgentSource;
-    downloadUrl?: string;
-  };
+  agentBin: string;
   logLevel: string;
 }
 
@@ -58,19 +53,6 @@ function validateAppType(value: string): Result<AppType, ConfigError> {
   return Result.ok(value as AppType);
 }
 
-function validateAgentSource(value: string): Result<AgentSource, ConfigError> {
-  const validSources: AgentSource[] = ["embedded", "download", "local"];
-  if (!validSources.includes(value as AgentSource)) {
-    return Result.err(
-      new ConfigError(
-        `Invalid AGENT_SOURCE: ${value}. Must be one of: ${validSources.join(", ")}`,
-        "AGENT_SOURCE"
-      )
-    );
-  }
-  return Result.ok(value as AgentSource);
-}
-
 /**
  * Load and validate configuration from environment variables.
  * Fails early with clear error messages if misconfigured.
@@ -82,28 +64,6 @@ export function loadConfig(): Result<Config, ConfigError> {
     return Result.err(appTypeResult.error);
   }
 
-  // Validate agent source (defaults to "embedded" for backward compatibility)
-  const agentSourceStr = getEnv("AGENT_SOURCE") || "embedded";
-  const agentSourceResult = validateAgentSource(agentSourceStr);
-
-  if (agentSourceResult.isErr) {
-    return Result.err(agentSourceResult.error);
-  }
-
-  const agentSource = agentSourceResult.value;
-  const agentBinPath = getEnv("AGENT_BIN") || "/app/podpilot-agent";
-  const agentDownloadUrl = getEnv("AGENT_DOWNLOAD_URL");
-
-  // Validate that download URL is provided when source is "download"
-  if (agentSource === "download" && !agentDownloadUrl) {
-    return Result.err(
-      new ConfigError(
-        "AGENT_DOWNLOAD_URL is required when AGENT_SOURCE is 'download'",
-        "AGENT_DOWNLOAD_URL"
-      )
-    );
-  }
-
   const authKey = getEnv("TAILSCALE_AUTHKEY");
 
   const config: Config = {
@@ -113,11 +73,7 @@ export function loadConfig(): Result<Config, ConfigError> {
       hostname: getEnv("TAILSCALE_HOSTNAME") || "podpilot-agent",
       tags: getEnv("TAILSCALE_TAGS") || "tag:podpilot-agent",
     },
-    agent: {
-      binPath: agentBinPath,
-      source: agentSource,
-      ...(agentDownloadUrl ? { downloadUrl: agentDownloadUrl } : {}),
-    },
+    agentBin: getEnv("AGENT_BIN") || "/app/podpilot-agent",
     logLevel: getEnv("LOG_LEVEL") || "info",
   };
 

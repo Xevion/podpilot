@@ -2,23 +2,13 @@
 
 FROM baseimage
 
-# ============================================
-# BUILD ARGUMENTS
-# ============================================
 ARG FOOOCUS_COMMIT
 ARG VENV_PATH
 ARG APP_VERSION
 
-# ============================================
-# ENVIRONMENT VARIABLES
-# ============================================
 ENV APP_TYPE=fooocus \
     VENV_PATH=${VENV_PATH} \
     TEMPLATE_VERSION=${APP_VERSION}
-
-# ============================================
-# INSTALL FOOOCUS
-# ============================================
 
 WORKDIR /workspace
 

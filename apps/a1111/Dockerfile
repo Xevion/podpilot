@@ -2,23 +2,13 @@
 
 FROM baseimage
 
-# ============================================
-# BUILD ARGUMENTS
-# ============================================
 ARG WEBUI_VERSION
 ARG VENV_PATH
 ARG APP_VERSION
 
-# ============================================
-# ENVIRONMENT VARIABLES
-# ============================================
 ENV APP_TYPE=a1111 \
     VENV_PATH=${VENV_PATH} \
     TEMPLATE_VERSION=${APP_VERSION}
-
-# ============================================
-# INSTALL A1111
-# ============================================
 
 # Clone A1111 repository with version pinning
 RUN git clone --branch ${WEBUI_VERSION} --depth=1 https://github.com/AUTOMATIC1111/stable-diffusion-webui.git || \

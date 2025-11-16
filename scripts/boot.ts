@@ -1,15 +1,129 @@
 #!/usr/bin/env bun
 
+/**
+ * PodPilot Agent Boot Script
+ * Main entrypoint for all PodPilot application Docker images.
+ *
+ * This script orchestrates the startup sequence:
+ * 1. Load and validate configuration
+ * 2. Start Tailscale daemon
+ * 3. Wait for Tailscale readiness
+ * 4. Connect to Tailscale network (if auth key provided)
+ * 5. Start SSH daemon for remote access
+ * 6. Launch application based on APP_TYPE
+ * 7. Wait for application readiness
+ * 8. Start PodPilot agent
+ * 9. Keep all processes running
+ */
+
 import { logger } from "./lib/logger";
 import { loadConfig } from "./lib/config";
 import { initializeTailscale } from "./lib/tailscale";
 import { launchApp } from "./lib/apps";
-import { ensureAgent, startAgent } from "./lib/agent";
+import { startAgent } from "./lib/agent";
+import { spawnBackground } from "./lib/process";
+import { forwardProcessLogs } from "./lib/log-forward";
+import { existsSync, writeFileSync } from "fs";
+
+/**
+ * Fetch SSH public keys from GitHub for a given username.
+ */
+async function fetchGitHubKeys(username: string): Promise<string[]> {
+  const url = `https://github.com/${username}.keys`;
+  logger.debug(`Fetching SSH keys from GitHub for ${username}`);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      logger.warn(`Failed to fetch GitHub keys for ${username}`, {
+        status: response.status,
+      });
+      return [];
+    }
+
+    const text = await response.text();
+    const keys = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    logger.info(`Fetched ${keys.length} SSH keys from GitHub`, { username });
+    return keys;
+  } catch (error) {
+    logger.warn(`Error fetching GitHub keys for ${username}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+}
+
+/**
+ * Setup SSH authorized_keys from environment variable or mounted file.
+ * Priority: mounted file > environment variable
+ * Supports GitHub username fetching: github.com/username
+ */
+async function setupAuthorizedKeys(): Promise<void> {
+  const sshDir = "/root/.ssh";
+  const authorizedKeysPath = "/root/.ssh/authorized_keys";
+
+  // Ensure .ssh directory exists
+  if (!existsSync(sshDir)) {
+    const fs = await import("fs/promises");
+    await fs.mkdir(sshDir, { mode: 0o700, recursive: true });
+    logger.debug("Created /root/.ssh directory");
+  }
+
+  if (existsSync(authorizedKeysPath)) {
+    logger.info("Using existing authorized_keys file");
+    return;
+  }
+
+  const sshKeysEnv = process.env.SSH_AUTHORIZED_KEYS;
+  if (!sshKeysEnv) {
+    logger.warn("No SSH keys configured (SSH_AUTHORIZED_KEYS not set and no mounted file)");
+    return;
+  }
+
+  logger.info("Processing SSH_AUTHORIZED_KEYS");
+  const lines = sshKeysEnv.split("\n").map((line) => line.trim());
+  const allKeys: string[] = [];
+
+  for (const line of lines) {
+    if (!line) continue;
+
+    const githubMatch = line.match(/^github\.com\/([a-zA-Z0-9-]+)$/);
+    if (githubMatch) {
+      const username = githubMatch[1];
+      const keys = await fetchGitHubKeys(username);
+      allKeys.push(...keys);
+    } else {
+      allKeys.push(line);
+    }
+  }
+
+  if (allKeys.length === 0) {
+    logger.warn("No valid SSH keys found after processing");
+    return;
+  }
+
+  const uniqueKeys = [...new Set(allKeys)];
+  logger.info(`Writing ${uniqueKeys.length} unique SSH keys to authorized_keys`);
+
+  writeFileSync(authorizedKeysPath, uniqueKeys.join("\n") + "\n", {
+    mode: 0o600,
+  });
+  logger.debug("authorized_keys written successfully");
+}
 
 async function main(): Promise<void> {
   logger.info("PodPilot Agent boot script starting");
 
-  // Load and validate configuration
+  // Step 1: Load and validate configuration
   logger.debug("Loading configuration from environment");
   const configResult = loadConfig();
 
@@ -28,77 +142,22 @@ async function main(): Promise<void> {
     hasAuthKey: !!config.tailscale.authKey,
   });
 
-  // Initialize Tailscale (daemon + optional network connection)
-  const tailscaleResult = await initializeTailscale(
-    config.tailscale.authKey,
-    config.tailscale.hostname,
-    config.tailscale.tags
-  );
-
-  if (tailscaleResult.isErr) {
-    logger.error("Tailscale initialization failed", {
-      error: tailscaleResult.error,
-    });
-    process.exit(1);
-  }
-
-  const tailscaleProc = tailscaleResult.value;
-  logger.info("Tailscale initialized successfully", { pid: tailscaleProc.pid });
-
-  // Launch application and wait for readiness
-  const appResult = await launchApp(config.appType);
-
-  if (appResult.isErr) {
-    logger.error("Application launch failed", {
-      appType: config.appType,
-      error: appResult.error,
-    });
-    process.exit(1);
-  }
-
-  const appProc = appResult.value;
-  logger.info("Application launched successfully", {
-    appType: config.appType,
-    pid: appProc.pid,
+  // Shutdown state and promise for signal handling
+  let shuttingDown = false;
+  let shutdownResolver: (() => void) | undefined;
+  const shutdownPromise = new Promise<void>((resolve) => {
+    shutdownResolver = resolve;
   });
 
-  // Ensure agent binary is available
-  const agentPathResult = await ensureAgent(config);
-
-  if (agentPathResult.isErr) {
-    logger.error("Agent acquisition failed", {
-      error: agentPathResult.error,
-      source: config.agent.source,
-    });
-    process.exit(1);
-  }
-
-  const agentPath = agentPathResult.value;
-
-  // Start PodPilot agent
-  const agentResult = startAgent(agentPath);
-
-  if (agentResult.isErr) {
-    logger.error("Agent startup failed", {
-      error: agentResult.error,
-    });
-    process.exit(1);
-  }
-
-  const agentProc = agentResult.value;
-  logger.info("Agent started successfully", { pid: agentProc.pid });
-
-  // Keep processes running and handle signals
-  logger.info("Boot sequence complete - all processes running");
-  logger.info("Process IDs", {
-    tailscale: tailscaleProc.pid,
-    app: appProc.pid,
-    agent: agentProc.pid,
-  });
+  // Store process references for cleanup
+  let tailscaleProc: Bun.Subprocess | undefined;
+  let sshdProc: Bun.Subprocess | undefined;
+  let appProc: Bun.Subprocess | undefined;
+  let agentProc: Bun.Subprocess | undefined;
 
   // Handle graceful shutdown
   const shutdown = async (signal: string) => {
-    logger.info(`Received ${signal}, shutting down gracefully`);
+    logger.info(`Shutting down gracefully after ${signal}`);
 
     // Helper to kill process with timeout and fallback to SIGKILL
     const killWithTimeout = async (
@@ -129,20 +188,21 @@ async function main(): Promise<void> {
       logger.info(`${name} terminated`);
     };
 
-    await killWithTimeout(agentProc, "agent");
-    await killWithTimeout(appProc, "application");
-    await killWithTimeout(tailscaleProc, "Tailscale");
+    if (agentProc) await killWithTimeout(agentProc, "agent");
+    if (appProc) await killWithTimeout(appProc, "application");
+    if (sshdProc) await killWithTimeout(sshdProc, "sshd");
+    if (tailscaleProc) await killWithTimeout(tailscaleProc, "Tailscale");
 
     logger.info("Shutdown complete");
     process.exit(0);
   };
 
-  // Track shutdown state to prevent double-shutdown
-  let shuttingDown = false;
-
+  // Signal handlers for graceful shutdown
   process.on("SIGTERM", () => {
     if (!shuttingDown) {
+      logger.info("SIGTERM received, initiating shutdown");
       shuttingDown = true;
+      shutdownResolver?.();
       shutdown("SIGTERM").catch((err) => {
         logger.error("Error during shutdown", { error: err });
         process.exit(1);
@@ -152,7 +212,9 @@ async function main(): Promise<void> {
 
   process.on("SIGINT", () => {
     if (!shuttingDown) {
+      logger.info("SIGINT received, initiating shutdown");
       shuttingDown = true;
+      shutdownResolver?.();
       shutdown("SIGINT").catch((err) => {
         logger.error("Error during shutdown", { error: err });
         process.exit(1);
@@ -160,12 +222,116 @@ async function main(): Promise<void> {
     }
   });
 
-  // Wait for agent process to exit (should run indefinitely)
-  const agentExitCode = await agentProc.exited;
-  logger.error("Agent process exited unexpectedly", {
-    exitCode: agentExitCode,
+  // Step 2-4: Initialize Tailscale (daemon + optional network connection)
+  const tailscaleResult = await initializeTailscale(
+    config.tailscale.authKey,
+    config.tailscale.hostname,
+    config.tailscale.tags
+  );
+
+  if (tailscaleResult.isErr) {
+    logger.error("Tailscale initialization failed", {
+      error: tailscaleResult.error,
+    });
+    process.exit(1);
+  }
+
+  tailscaleProc = tailscaleResult.value;
+  logger.info("Tailscale initialized successfully", { pid: tailscaleProc.pid });
+
+  // Check if shutdown was initiated during Tailscale initialization
+  if (shuttingDown) {
+    logger.info("Shutdown initiated, exiting early");
+    return;
+  }
+
+  // Start SSH daemon for remote access over Tailscale
+  logger.info("Starting SSH daemon");
+
+  try {
+    await setupAuthorizedKeys();
+  } catch (error) {
+    logger.warn("Error setting up authorized_keys", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  const sshdResult = spawnBackground(["/usr/sbin/sshd", "-D", "-e"], {
+    stdout: "pipe",
+    stderr: "pipe",
   });
-  process.exit(agentExitCode);
+
+  if (sshdResult.isErr) {
+    logger.warn("Failed to start SSH daemon (SSH will be unavailable)", {
+      error: sshdResult.error,
+    });
+  } else {
+    sshdProc = sshdResult.value;
+    forwardProcessLogs(sshdProc, "sshd");
+    logger.info("SSH daemon started", { pid: sshdProc.pid });
+  }
+
+  // Step 5-6: Launch application and wait for readiness
+  const appResult = await launchApp(config.appType);
+
+  if (appResult.isErr) {
+    logger.error("Application launch failed", {
+      appType: config.appType,
+      error: appResult.error,
+    });
+    process.exit(1);
+  }
+
+  appProc = appResult.value;
+  logger.info("Application launched successfully", {
+    appType: config.appType,
+    pid: appProc.pid,
+  });
+
+  // Check if shutdown was initiated during app launch
+  if (shuttingDown) {
+    logger.info("Shutdown initiated, exiting early");
+    return;
+  }
+
+  // Step 7: Start PodPilot agent
+  const agentResult = startAgent(config.agentBin);
+
+  if (agentResult.isErr) {
+    logger.error("Agent startup failed", {
+      error: agentResult.error,
+    });
+    process.exit(1);
+  }
+
+  agentProc = agentResult.value;
+  logger.info("Agent started successfully", { pid: agentProc.pid });
+
+  // Step 8: Keep processes running and handle signals
+  logger.info("Boot sequence complete - all processes running");
+  logger.info("Process IDs", {
+    tailscale: tailscaleProc.pid,
+    sshd: sshdProc?.pid ?? "not running",
+    app: appProc.pid,
+    agent: agentProc.pid,
+  });
+
+  // Wait for either agent exit or shutdown signal
+  const result = await Promise.race([
+    agentProc.exited.then((code) => ({ type: "exit" as const, code })),
+    shutdownPromise.then(() => ({ type: "shutdown" as const })),
+  ]);
+
+  if (result.type === "exit") {
+    logger.error("Agent process exited unexpectedly", {
+      exitCode: result.code,
+    });
+    process.exit(result.code);
+  }
+
+  // If we reach here, shutdown was initiated via signal
+  // The signal handler will handle cleanup
+  logger.debug("Main execution complete, waiting for shutdown to finish");
 }
 
 main().catch((error) => {

@@ -2,23 +2,13 @@
 
 FROM baseimage
 
-# ============================================
-# BUILD ARGUMENTS
-# ============================================
 ARG KOHYA_VERSION
 ARG VENV_PATH
 ARG APP_VERSION
 
-# ============================================
-# ENVIRONMENT VARIABLES
-# ============================================
 ENV APP_TYPE=kohya \
     VENV_PATH=${VENV_PATH} \
     TEMPLATE_VERSION=${APP_VERSION}
-
-# ============================================
-# INSTALL KOHYA_SS
-# ============================================
 
 WORKDIR /workspace
 
