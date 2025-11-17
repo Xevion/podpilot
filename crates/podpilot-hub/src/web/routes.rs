@@ -2,7 +2,7 @@ use axum::{
     Json,
     Router,
     body::Body,
-    extract::Request,
+    extract::{Request, State},
     http::{HeaderMap, HeaderValue, StatusCode, Uri},
     response::{Html, IntoResponse, Response},
     routing::get,
@@ -62,9 +62,14 @@ fn set_caching_headers(response: &mut Response, path: &str, etag: &str) {
 }
 
 /// Health check endpoint for monitoring and orchestration platforms
-async fn health() -> impl IntoResponse {
+async fn health(State(state): State<AppState>) -> impl IntoResponse {
+    let tailscale_ip = state.tailscale_ip().await.map(|ip| ip.to_string());
+    let connected_agents = state.connection_count();
+
     Json(serde_json::json!({
-        "status": "ok"
+        "status": "ok",
+        "tailscale_ip": tailscale_ip,
+        "connected_agents": connected_agents,
     }))
 }
 

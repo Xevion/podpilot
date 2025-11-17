@@ -20,3 +20,4 @@ chrono = { workspace = true, features = ["serde"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
+secrecy = { version = "0.10", features = ["serde"] }

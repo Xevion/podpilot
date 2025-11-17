@@ -5,8 +5,72 @@
 //! numeric values (interpreted as seconds) and duration strings with units.
 
 use fundu::{DurationParser, TimeUnit};
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer};
 use std::time::Duration;
+
+/// Tailscale OAuth configuration for Hub authentication
+///
+/// Contains optional OAuth credentials. Both fields must be provided together or both omitted.
+#[derive(Debug, Clone, Deserialize)]
+pub struct TailscaleConfig {
+    /// OAuth client ID (e.g., "k1AbCd2EfGh3")
+    #[serde(rename = "tailscale_client_id")]
+    pub client_id: Option<SecretString>,
+    /// OAuth client secret (e.g., "tskey-client-k1AbCd2EfGh3-123abc")
+    #[serde(rename = "tailscale_client_secret")]
+    pub client_secret: Option<SecretString>,
+}
+
+impl TailscaleConfig {
+    /// Validate that both credentials are present or both are absent
+    ///
+    /// Returns an error if only one credential is provided.
+    pub fn validate(&self) -> Result<(), String> {
+        match (&self.client_id, &self.client_secret) {
+            (Some(_), None) => Err(
+                "HUB_TAILSCALE_CLIENT_SECRET is required when HUB_TAILSCALE_CLIENT_ID is set"
+                    .to_string(),
+            ),
+            (None, Some(_)) => Err(
+                "HUB_TAILSCALE_CLIENT_ID is required when HUB_TAILSCALE_CLIENT_SECRET is set"
+                    .to_string(),
+            ),
+            _ => Ok(()),
+        }
+    }
+
+    /// Get the OAuth credentials if both are present
+    pub fn oauth(&self) -> Option<TailscaleOAuth> {
+        match (&self.client_id, &self.client_secret) {
+            (Some(id), Some(secret)) => Some(TailscaleOAuth {
+                client_id: id.clone(),
+                client_secret: secret.clone(),
+            }),
+            _ => None,
+        }
+    }
+}
+
+/// Tailscale OAuth credentials (both client_id and client_secret present)
+#[derive(Debug, Clone)]
+pub struct TailscaleOAuth {
+    pub client_id: SecretString,
+    pub client_secret: SecretString,
+}
+
+impl TailscaleOAuth {
+    /// Construct the authkey by combining client_id:client_secret
+    ///
+    /// Returns a SecretString to prevent accidental logging of credentials.
+    pub fn authkey(&self) -> SecretString {
+        SecretString::from(format!(
+            "{}:{}",
+            self.client_id.expose_secret(),
+            self.client_secret.expose_secret()
+        ))
+    }
+}
 
 /// Main application configuration containing all sub-configurations
 #[derive(Deserialize)]
@@ -34,6 +98,16 @@ pub struct Config {
         deserialize_with = "deserialize_duration"
     )]
     pub shutdown_timeout: Duration,
+    /// Tailscale OAuth configuration for Hub authentication (optional)
+    ///
+    /// When running locally with an existing Tailscale daemon, this is not needed.
+    /// When running in Docker/Railway, provide OAuth credentials to connect to tailnet.
+    ///
+    /// Both client_id and client_secret must be provided together via:
+    /// - HUB_TAILSCALE_CLIENT_ID
+    /// - HUB_TAILSCALE_CLIENT_SECRET
+    #[serde(flatten)]
+    pub tailscale: TailscaleConfig,
 }
 
 /// Default log level of "info"

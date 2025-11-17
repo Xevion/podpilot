@@ -29,25 +29,25 @@ build-hub:
 # ==============================================
 
 # Run A1111
-run-a1111 tailscale_authkey=env_var_or_default('TAILSCALE_AUTHKEY', ''):
+run-a1111 tailscale_authkey=env_var_or_default('AGENT_AUTHKEY', ''):
     docker run --rm --gpus all -p 7860:7860 -p 8081:8081 \
-    {{ if tailscale_authkey != '' { '-e TAILSCALE_AUTHKEY=' + tailscale_authkey } else { '' } }} \
+    {{ if tailscale_authkey != '' { '-e AGENT_AUTHKEY=' + tailscale_authkey } else { '' } }} \
     -v podpilot-models:/app/stable-diffusion-webui/models \
     -v podpilot-hf-cache:/workspace/huggingface \
     "ghcr.io/xevion/podpilot/a1111:cu12.1"
 
 # Run ComfyUI
-run-comfyui tailscale_authkey=env_var_or_default('TAILSCALE_AUTHKEY', ''):
+run-comfyui tailscale_authkey=env_var_or_default('AGENT_AUTHKEY', ''):
     docker run --rm --gpus all -p 8188:8188 -p 8189:8189 \
-    {{ if tailscale_authkey != '' { '-e TAILSCALE_AUTHKEY=' + tailscale_authkey } else { '' } }} \
+    {{ if tailscale_authkey != '' { '-e AGENT_AUTHKEY=' + tailscale_authkey } else { '' } }} \
     -v podpilot-models:/app/models \
     -v podpilot-comfyui-cache:/workspace/comfyui \
     "ghcr.io/xevion/podpilot/comfyui:cu12.1"
 
 # Run Fooocus
-run-fooocus tailscale_authkey=env_var_or_default('TAILSCALE_AUTHKEY', ''):
+run-fooocus tailscale_authkey=env_var_or_default('AGENT_AUTHKEY', ''):
     docker run --rm --gpus all -p 7860:7860 -p 8081:8081 \
-    {{ if tailscale_authkey != '' { '-e TAILSCALE_AUTHKEY=' + tailscale_authkey } else { '' } }} \
+    {{ if tailscale_authkey != '' { '-e AGENT_AUTHKEY=' + tailscale_authkey } else { '' } }} \
     -v podpilot-models:/app/models \
     -v podpilot-hf-cache:/workspace/huggingface \
     "ghcr.io/xevion/podpilot/fooocus:cu12.1"
@@ -65,7 +65,7 @@ build-a1111-live:
     docker buildx bake a1111-cu121-live
 
 # Run live a1111 with mounted local agent
-run-a1111-dev hub_ws_url=env_var_or_default('HUB_WEBSOCKET_URL', 'ws://localhost:8080/ws/agent') log_level=env_var_or_default('LOG_LEVEL', 'info') tailscale_authkey=env_var_or_default('TAILSCALE_AUTHKEY', '') ssh_authorized_keys=env_var_or_default('SSH_AUTHORIZED_KEYS', ''):
+run-a1111-dev hub_ws_url=env_var_or_default('HUB_WEBSOCKET_URL', 'ws://localhost:8080/ws/agent') log_level=env_var_or_default('LOG_LEVEL', 'info') tailscale_authkey=env_var_or_default('AGENT_AUTHKEY', '') ssh_authorized_keys=env_var_or_default('SSH_AUTHORIZED_KEYS', ''):
     docker run --rm \
         --gpus all \
         -p 7860:7860 \
@@ -74,7 +74,7 @@ run-a1111-dev hub_ws_url=env_var_or_default('HUB_WEBSOCKET_URL', 'ws://localhost
         -e AGENT_SOURCE=local \
         -e AGENT_BIN=/app/podpilot-agent \
         -e HUB_WEBSOCKET_URL="{{hub_ws_url}}" \
-        {{ if tailscale_authkey != '' { '-e TAILSCALE_AUTHKEY=' + tailscale_authkey } else { '' } }} \
+        {{ if tailscale_authkey != '' { '-e AGENT_AUTHKEY=' + tailscale_authkey } else { '' } }} \
         -e LOG_LEVEL="{{log_level}}" \
         -e SSH_AUTHORIZED_KEYS="{{ssh_authorized_keys}}" \
         -v "$(pwd)/target/debug/podpilot-agent:/app/podpilot-agent:ro" \

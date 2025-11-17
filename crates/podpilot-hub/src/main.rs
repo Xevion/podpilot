@@ -1,17 +1,8 @@
-use crate::app::App;
-use crate::cli::Args;
 use clap::Parser;
+use podpilot_hub::app::App;
+use podpilot_hub::cli::Args;
 use std::process::ExitCode;
 use tracing::info;
-
-mod api;
-mod app;
-mod cli;
-mod data;
-mod signals;
-mod state;
-mod web;
-mod ws;
 
 #[tokio::main]
 async fn main() -> ExitCode {

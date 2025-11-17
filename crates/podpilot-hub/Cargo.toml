@@ -56,3 +56,4 @@ clap = { version = "4.5", features = ["derive"] }
 rapidhash = "4.1"
 yansi = "1.0"
 uuid = { version = "1.18.1", features = ["v4", "serde"] }
+secrecy = { version = "0.10", features = ["serde"] }

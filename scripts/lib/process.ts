@@ -102,12 +102,22 @@ export async function spawnSync(
     const exitCode = await proc.exited;
 
     if (exitCode !== 0) {
+      const stderrPreview = stderr.slice(0, 500);
+      const truncated = stderr.length > 500;
+
       logger.warn("Process exited with non-zero code", {
         command: commandStr,
         exitCode,
-        stderr: stderr.slice(0, 500), // Log first 500 chars of stderr
+        stderrPreview,
+        stderrLength: stderr.length,
+        truncated,
       });
-      return Result.err(new ProcessError(`Process exited with code ${exitCode}`, commandStr, exitCode));
+
+      const errorMsg = truncated
+        ? `Process exited with code ${exitCode}: ${stderrPreview}... (${stderr.length - 500} more chars)`
+        : `Process exited with code ${exitCode}: ${stderrPreview}`;
+
+      return Result.err(new ProcessError(errorMsg, commandStr, exitCode));
     }
 
     logger.debug("Process completed successfully", { command: commandStr, exitCode });

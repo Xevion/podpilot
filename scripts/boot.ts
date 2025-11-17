@@ -97,7 +97,7 @@ async function setupAuthorizedKeys(): Promise<void> {
     if (!line) continue;
 
     const githubMatch = line.match(/^github\.com\/([a-zA-Z0-9-]+)$/);
-    if (githubMatch) {
+    if (githubMatch && githubMatch[1]) {
       const username = githubMatch[1];
       const keys = await fetchGitHubKeys(username);
       allKeys.push(...keys);
@@ -121,6 +121,9 @@ async function setupAuthorizedKeys(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const startTime = performance.now();
+  const timings: Record<string, number> = {};
+
   logger.info("PodPilot Agent boot script starting");
 
   // Step 1: Load and validate configuration
@@ -236,8 +239,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  tailscaleProc = tailscaleResult.value;
-  logger.info("Tailscale initialized successfully", { pid: tailscaleProc.pid });
+  const { process: tailscaleProcess, ip: tailscaleIp } = tailscaleResult.value;
+  tailscaleProc = tailscaleProcess;
+  timings.tailscale = performance.now() - startTime;
+  logger.debug("Tailscale initialization complete", {
+    durationMs: Math.round(timings.tailscale),
+  });
 
   // Check if shutdown was initiated during Tailscale initialization
   if (shuttingDown) {
@@ -246,7 +253,8 @@ async function main(): Promise<void> {
   }
 
   // Start SSH daemon for remote access over Tailscale
-  logger.info("Starting SSH daemon");
+  logger.debug("Starting SSH daemon");
+  const sshStartTime = performance.now();
 
   try {
     await setupAuthorizedKeys();
@@ -268,10 +276,12 @@ async function main(): Promise<void> {
   } else {
     sshdProc = sshdResult.value;
     forwardProcessLogs(sshdProc, "sshd");
-    logger.info("SSH daemon started", { pid: sshdProc.pid });
+    timings.ssh = performance.now() - sshStartTime;
+    logger.debug("SSH daemon started", { durationMs: Math.round(timings.ssh) });
   }
 
   // Step 5-6: Launch application and wait for readiness
+  const appStartTime = performance.now();
   const appResult = await launchApp(config.appType);
 
   if (appResult.isErr) {
@@ -283,9 +293,9 @@ async function main(): Promise<void> {
   }
 
   appProc = appResult.value;
-  logger.info("Application launched successfully", {
-    appType: config.appType,
-    pid: appProc.pid,
+  timings.app = performance.now() - appStartTime;
+  logger.debug("Application launch complete", {
+    durationMs: Math.round(timings.app),
   });
 
   // Check if shutdown was initiated during app launch
@@ -295,7 +305,8 @@ async function main(): Promise<void> {
   }
 
   // Step 7: Start PodPilot agent
-  const agentResult = startAgent(config.agentBin);
+  const agentStartTime = performance.now();
+  const agentResult = startAgent(config.agentBin, tailscaleIp);
 
   if (agentResult.isErr) {
     logger.error("Agent startup failed", {
@@ -305,15 +316,24 @@ async function main(): Promise<void> {
   }
 
   agentProc = agentResult.value;
-  logger.info("Agent started successfully", { pid: agentProc.pid });
+  timings.agent = performance.now() - agentStartTime;
+  const totalDuration = performance.now() - startTime;
 
   // Step 8: Keep processes running and handle signals
-  logger.info("Boot sequence complete - all processes running");
-  logger.info("Process IDs", {
-    tailscale: tailscaleProc.pid,
-    sshd: sshdProc?.pid ?? "not running",
-    app: appProc.pid,
-    agent: agentProc.pid,
+  logger.info("Boot sequence complete", {
+    totalDurationMs: Math.round(totalDuration),
+    phases: {
+      tailscaleMs: Math.round(timings.tailscale),
+      sshMs: timings.ssh ? Math.round(timings.ssh) : undefined,
+      appMs: Math.round(timings.app),
+      agentMs: Math.round(timings.agent),
+    },
+    processes: {
+      tailscale: { pid: tailscaleProc.pid, ip: tailscaleIp },
+      sshd: sshdProc ? { pid: sshdProc.pid } : "not running",
+      app: { type: config.appType, pid: appProc.pid },
+      agent: { pid: agentProc.pid },
+    },
   });
 
   // Wait for either agent exit or shutdown signal

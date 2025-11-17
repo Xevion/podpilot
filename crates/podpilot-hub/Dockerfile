@@ -67,6 +67,10 @@ RUN cargo build --release --package podpilot-hub
 # Strip the binary to reduce size
 RUN strip target/release/podpilot-hub
 
+# --- Tailscale Stage ---
+# Extract Tailscale binaries from official image
+FROM tailscale/tailscale:stable AS tailscale
+
 # --- Runtime Stage ---
 # This is the final, lightweight image that will run on Railway.
 FROM debian:12-slim
@@ -90,6 +94,14 @@ ENV TZ=${TZ}
 RUN addgroup --gid $GID $APP_USER \
     && adduser --uid $UID --disabled-password --gecos "" --ingroup $APP_USER $APP_USER \
     && mkdir -p ${APP}
+
+# Create directories for Tailscale state and socket
+RUN mkdir -p /var/lib/tailscale /var/run/tailscale \
+    && chown -R $APP_USER:$APP_USER /var/lib/tailscale /var/run/tailscale
+
+# Copy Tailscale binaries
+COPY --from=tailscale /usr/local/bin/tailscaled /usr/local/bin/tailscaled
+COPY --from=tailscale /usr/local/bin/tailscale /usr/local/bin/tailscale
 
 # Copy the compiled application binary
 COPY --from=builder --chown=$APP_USER:$APP_USER --chmod=755 /app/target/release/podpilot-hub ${APP}/podpilot-hub

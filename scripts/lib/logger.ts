@@ -32,10 +32,21 @@ const stdoutStream = new WritableStream({
 const configureLogging = async () => {
   const minLevel = (process.env.LOG_LEVEL as LogLevel) || "info";
 
+  // All logger categories used in the system
+  const categories = [
+    "supervisor",
+    "a1111",
+    "comfyui",
+    "fooocus",
+    "kohya",
+    "sshd",
+    "tailscaled",
+  ];
+
   await configure({
     sinks: {
       stdout: getStreamSink(stdoutStream, {
-        formatter: getJsonLinesFormatter(),
+        formatter: getJsonLinesFormatter({ properties: "flatten" }),
       }),
     },
     loggers: [
@@ -43,11 +54,12 @@ const configureLogging = async () => {
         category: ["logtape", "meta"],
         lowestLevel: "warning",
       },
-      {
-        category: "podpilot",
+      // Configure each category with the same settings
+      ...categories.map((cat) => ({
+        category: cat,
         lowestLevel: logLevelMap[minLevel],
         sinks: ["stdout"],
-      },
+      })),
     ],
   });
 };
@@ -55,4 +67,5 @@ const configureLogging = async () => {
 // Initialize logging immediately
 await configureLogging();
 
-export const logger = getLogtapeLogger(["podpilot"]);
+export const logger = getLogtapeLogger(["supervisor"]);
+export const getLogger = getLogtapeLogger;

@@ -23,9 +23,7 @@ reqwest = { version = "0.12", features = ["json"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = "0.4"
-futures = "0.3"
 futures-util = "0.3"
 tokio-tungstenite = "0.24"
-dashmap = "6.1"
 anyhow = "1.0"
 fundu = "2.0"

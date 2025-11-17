@@ -32,6 +32,12 @@ impl App {
             .extract()
             .expect("Failed to load config");
 
+        // Validate Tailscale configuration (both credentials present or both absent)
+        config
+            .tailscale
+            .validate()
+            .expect("Invalid Tailscale configuration");
+
         // Check if the database URL is via private networking
         let is_private = config.database_url.contains("railway.internal");
         let slow_threshold = if is_private {
@@ -58,6 +64,11 @@ impl App {
         );
 
         let app_state = AppState::new(db_pool.clone());
+
+        // Initialize Tailscale (auto-detects existing daemon or spawns own)
+        crate::tailscale::initialize(&config)
+            .await
+            .expect("Failed to initialize Tailscale");
 
         Ok(App {
             config,
@@ -91,7 +102,19 @@ impl App {
             cleanup_task(cleanup_state, cleanup_shutdown).await;
         });
 
-        info!("Background tasks spawned (heartbeat sender, cleanup)");
+        // Spawn Tailscale IP updater task (always enabled)
+        let tailscale_state = self.state.clone();
+        let tailscale_shutdown = shutdown_flag.clone();
+        tokio::spawn(async move {
+            crate::tailscale::tailscale_ip_updater_task(
+                tailscale_state,
+                Duration::from_secs(60), // Hardcoded to 60 seconds
+                tailscale_shutdown,
+            )
+            .await;
+        });
+
+        info!("Background tasks spawned (heartbeat sender, cleanup, tailscale updater)");
 
         tracing::info!(address = %addr, "starting axum web server");
 

@@ -6,7 +6,6 @@
 import { Result } from "true-myth";
 import { logger } from "./logger";
 import { spawnBackground, spawnSync, ProcessError } from "./process";
-import { waitForHttp } from "./wait";
 import { forwardProcessLogs } from "./log-forward";
 
 export class TailscaleError extends Error {
@@ -19,7 +18,63 @@ export class TailscaleError extends Error {
   }
 }
 
-const TAILSCALE_STATUS_URL = "http://localhost:41641/localapi/v0/status";
+/**
+ * Capture recent output from a subprocess for error diagnostics.
+ * Reads up to the specified number of lines from stderr (and stdout if requested).
+ */
+async function captureDaemonLogs(
+  proc: Bun.Subprocess,
+  maxLines: number = 20
+): Promise<string> {
+  const logs: string[] = [];
+
+  try {
+    // Try to read from stderr first (most relevant for errors)
+    if (proc.stderr && typeof proc.stderr !== "number") {
+      const reader = proc.stderr.getReader();
+      const chunks: Uint8Array[] = [];
+      let totalBytes = 0;
+      const maxBytes = 4096; // Limit to prevent memory issues
+
+      try {
+        while (totalBytes < maxBytes) {
+          const { value, done } = await reader.read();
+          if (done || !value) break;
+
+          chunks.push(value);
+          totalBytes += value.length;
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      if (chunks.length > 0) {
+        const combined = new Uint8Array(totalBytes);
+        let offset = 0;
+        for (const chunk of chunks) {
+          combined.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        const text = new TextDecoder().decode(combined);
+        const lines = text.split("\n").filter((line) => line.trim() !== "");
+        logs.push(...lines.slice(-maxLines));
+      }
+    }
+  } catch (error) {
+    // Best effort - if we can't read logs, continue without them
+    logger.debug("Failed to capture daemon logs", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  if (logs.length === 0) {
+    return "(no logs available)";
+  }
+
+  return logs.join("\n");
+}
+
 const MAX_RETRIES = 5;
 const INITIAL_BACKOFF_MS = 1000;
 
@@ -59,22 +114,60 @@ export function startTailscaleDaemon(): Result<Bun.Subprocess, TailscaleError> {
 
 /**
  * Wait for the Tailscale daemon to be ready.
- * Polls the local API status endpoint.
+ * Polls the CLI status command with timing information.
  */
-export async function waitForTailscaleDaemon(): Promise<Result<void, TailscaleError>> {
+export async function waitForTailscaleDaemon(
+  daemonProcess?: Bun.Subprocess
+): Promise<Result<void, TailscaleError>> {
   logger.debug("Waiting for Tailscale daemon to be ready");
 
-  const result = await waitForHttp(TAILSCALE_STATUS_URL, {
-    timeoutMs: 10000, // 10 seconds
-    intervalMs: 200, // Check every 200ms
-  });
+  const maxAttempts = 50;
+  const intervalMs = 200;
+  const startTime = performance.now();
+  let lastError: string = "";
 
-  if (result.isErr) {
-    return Result.err(new TailscaleError("Tailscale daemon did not become ready in time", result.error));
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const proc = Bun.spawnSync(["tailscale", "status"]);
+
+    if (proc.success) {
+      const durationMs = Math.round(performance.now() - startTime);
+      logger.debug("Tailscale daemon is ready", { attempt, durationMs });
+      return Result.ok(undefined);
+    }
+
+    // Capture last error for diagnostics
+    lastError = new TextDecoder().decode(proc.stderr).trim();
+
+    if (attempt < maxAttempts) {
+      await Bun.sleep(intervalMs);
+    }
   }
 
-  logger.debug("Tailscale daemon is ready");
-  return Result.ok(undefined);
+  const durationMs = Math.round(performance.now() - startTime);
+  const totalTimeoutMs = maxAttempts * intervalMs;
+
+  let errorMsg = `Tailscale daemon did not become ready after ${maxAttempts} attempts (${durationMs}ms elapsed, ${totalTimeoutMs}ms timeout)`;
+
+  if (lastError) {
+    errorMsg += `\n\nLast error: ${lastError}`;
+  }
+
+  // If we have the daemon process, try to capture recent logs
+  if (daemonProcess) {
+    try {
+      const recentLogs = await captureDaemonLogs(daemonProcess, 20);
+      errorMsg += `\n\nRecent daemon logs:\n${recentLogs}`;
+    } catch {
+      // Best effort
+    }
+  }
+
+  errorMsg += `\n\nTroubleshooting:
+  - Check if tailscaled has the necessary permissions
+  - Verify network connectivity
+  - Ensure /var/run/tailscale directory is writable`;
+
+  return Result.err(new TailscaleError(errorMsg));
 }
 
 /**
@@ -128,16 +221,51 @@ export async function connectToTailnet(
 }
 
 /**
+ * Get the Tailscale IP address using the CLI.
+ */
+export async function getTailscaleIp(): Promise<Result<string, TailscaleError>> {
+  logger.debug("Fetching Tailscale IP via CLI");
+
+  const proc = Bun.spawnSync(["tailscale", "status", "--json"]);
+
+  if (!proc.success) {
+    const stderr = new TextDecoder().decode(proc.stderr);
+    return Result.err(
+      new TailscaleError(`Failed to get Tailscale status: ${stderr.trim()}`)
+    );
+  }
+
+  try {
+    const status = JSON.parse(new TextDecoder().decode(proc.stdout));
+    const ip = status?.Self?.TailscaleIPs?.[0];
+
+    if (!ip) {
+      return Result.err(new TailscaleError("No Tailscale IP found in status output"));
+    }
+
+    logger.info("Detected Tailscale IP", { ip });
+    return Result.ok(ip);
+  } catch (error) {
+    return Result.err(
+      new TailscaleError(
+        `Failed to parse Tailscale status output: ${error instanceof Error ? error.message : String(error)}`
+      )
+    );
+  }
+}
+
+/**
  * Initialize Tailscale: start daemon, wait for readiness, and optionally connect.
+ * Returns both the daemon process and the Tailscale IP address.
  */
 export async function initializeTailscale(
   authKey?: string,
   hostname: string = "podpilot-agent",
   tags: string = "tag:podpilot-agent"
-): Promise<Result<Bun.Subprocess, TailscaleError>> {
+): Promise<Result<{ process: Bun.Subprocess; ip: string }, TailscaleError>> {
   const daemonResult = startTailscaleDaemon();
   if (daemonResult.isErr) {
-    return daemonResult;
+    return Result.err(daemonResult.error);
   }
 
   // Wait 2 seconds for daemon to initialize (matches old bash script behavior)
@@ -150,8 +278,14 @@ export async function initializeTailscale(
       return Result.err(connectResult.error);
     }
   } else {
-    logger.info("No TAILSCALE_AUTHKEY provided, skipping network connection");
+    logger.info("No AGENT_AUTHKEY provided, skipping network connection");
   }
 
-  return daemonResult;
+  // Auto-detect Tailscale IP
+  const ipResult = await getTailscaleIp();
+  if (ipResult.isErr) {
+    return Result.err(ipResult.error);
+  }
+
+  return Result.ok({ process: daemonResult.value, ip: ipResult.value });
 }

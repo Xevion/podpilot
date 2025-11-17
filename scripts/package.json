@@ -1,11 +1,12 @@
 {
-  "name": "podpilot-scripts",
+  "name": "supervisor",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Boot scripts for PodPilot Docker images",
   "scripts": {
-    "start": "bun run boot.ts"
+    "start": "bun run boot.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@logtape/logtape": "^1.2.0",

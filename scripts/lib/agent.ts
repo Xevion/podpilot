@@ -21,16 +21,17 @@ export class AgentError extends Error {
  * Start the PodPilot agent with proxy configuration.
  * The agent will use the Tailscale SOCKS5/HTTP proxy for all network requests.
  */
-export function startAgent(agentBinPath: string): Result<Bun.Subprocess, AgentError> {
-  logger.debug("Starting PodPilot agent with proxy configuration", { agentBinPath });
+export function startAgent(agentBinPath: string, tailscaleIp: string): Result<Bun.Subprocess, AgentError> {
+  logger.debug("Starting PodPilot agent with proxy configuration", { agentBinPath, tailscaleIp });
 
   const proxyEnv = {
     ALL_PROXY: "socks5://localhost:1055/",
     HTTP_PROXY: "http://localhost:1055/",
     http_proxy: "http://localhost:1055/",
+    TAILSCALE_IP: tailscaleIp,
   };
 
-  logger.debug("Agent proxy environment configured", proxyEnv);
+  logger.debug("Agent environment configured", proxyEnv);
 
   const result = spawnBackground([agentBinPath], {
     env: proxyEnv,
@@ -42,6 +43,6 @@ export function startAgent(agentBinPath: string): Result<Bun.Subprocess, AgentEr
     return Result.err(new AgentError("Failed to start PodPilot agent", result.error));
   }
 
-  logger.info("PodPilot agent started", { pid: result.value.pid });
+  logger.info("PodPilot agent started", { pid: result.value.pid, tailscaleIp });
   return Result.ok(result.value);
 }

@@ -64,14 +64,14 @@ export function loadConfig(): Result<Config, ConfigError> {
     return Result.err(appTypeResult.error);
   }
 
-  const authKey = getEnv("TAILSCALE_AUTHKEY");
+  const authKey = getEnv("AGENT_AUTHKEY");
 
   const config: Config = {
     appType: appTypeResult.value,
     tailscale: {
       ...(authKey ? { authKey } : {}),
-      hostname: getEnv("TAILSCALE_HOSTNAME") || "podpilot-agent",
-      tags: getEnv("TAILSCALE_TAGS") || "tag:podpilot-agent",
+      hostname: require("os").hostname(),
+      tags: "tag:podpilot-agent",
     },
     agentBin: getEnv("AGENT_BIN") || "/app/podpilot-agent",
     logLevel: getEnv("LOG_LEVEL") || "info",
