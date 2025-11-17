@@ -31,6 +31,10 @@ variable "USE_LOCAL_BASE" {
   default = ""
 }
 
+variable "DISABLE_CACHE_PUSH" {
+  default = false
+}
+
 # ============================================
 # FUNCTIONS
 # ============================================
@@ -62,10 +66,10 @@ function "cache_from" {
   ]
 }
 
-# Generate cache-to configuration
+# Generate cache-to configuration (disabled if DISABLE_CACHE_PUSH is true)
 function "cache_to" {
   params = [name, tag]
-  result = [
+  result = DISABLE_CACHE_PUSH ? [] : [
     "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/${name}:${tag}-buildcache,mode=max",
     "type=inline"
   ]
@@ -140,6 +144,32 @@ target "base_matrix" {
 }
 
 # ============================================
+# HUB (web server + API)
+# ============================================
+target "hub" {
+  dockerfile = "crates/podpilot-hub/Dockerfile"
+  context = "."
+  platforms = ["linux/amd64"]
+  tags = [
+    "podpilot-hub:dev",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/hub:${APP_VERSION}",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/hub:latest",
+    "${REGISTRY}/${REGISTRY_USER}/podpilot/hub:${GIT_SHA}",
+  ]
+  args = {
+    RAILWAY_GIT_COMMIT_SHA = "${GIT_SHA}"
+    RUST_VERSION = "${RUST_VERSION}"
+  }
+  cache-from = [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/hub:buildcache",
+  ]
+  cache-to = DISABLE_CACHE_PUSH ? [] : [
+    "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/hub:buildcache,mode=max",
+  ]
+  output = ["type=docker"]
+}
+
+# ============================================
 # AGENT BUILDER (local only, used as context)
 # ============================================
 target "agent-binary" {
@@ -156,7 +186,7 @@ target "agent-binary" {
   cache-from = [
     "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/agent:buildcache",
   ]
-  cache-to = [
+  cache-to = DISABLE_CACHE_PUSH ? [] : [
     "type=registry,ref=${REGISTRY}/${REGISTRY_USER}/podpilot/agent:buildcache,mode=max",
   ]
 }

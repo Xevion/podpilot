@@ -4,30 +4,38 @@ set shell := ["fish", "-c"]
 default:
     just --list
 
-# Auto-reloading frontend server
-frontend:
-    pnpm run -C crates/podpilot-hub/web dev
+# Auto-reloading development for both frontend and backend (parallel)
+[parallel]
+hub-dev *ARGS='': (_hub-frontend "dev") (_hub-backend ARGS)
 
-# Production build of frontend
-build-frontend:
-    pnpm run -C crates/podpilot-hub/web build
-
-check-scripts:
-    bun --cwd scripts/ tsc --noEmit
-
-# Auto-reloading backend server
-backend *ARGS:
-    bacon --headless run -- --bin podpilot-hub -- {{ARGS}}
-
-# Production build
-build-hub:
-    pnpm run -C crates/podpilot-hub/web build
+# Production build of Hub (frontend + backend binary)
+hub-build: (_hub-frontend "build")
     cargo build --release --package podpilot-hub
 
-# Run any app with any CUDA version (e.g., just run a1111 121)
-# CUDA: 121, 124, or 128 (optionally with 'cu' prefix)
-# Auto-detects local agent binary and mounts it for development
-# Forwards all environment variables from .env automatically
+# Build and run Hub Docker image
+hub-docker: (bake "hub")
+    docker run --rm -p 8080:8080 \
+        -e DATABASE_URL="$DATABASE_URL" \
+        -e HUB_TAILSCALE_CLIENT_ID="$HUB_TAILSCALE_CLIENT_ID" \
+        -e HUB_TAILSCALE_CLIENT_SECRET="$HUB_TAILSCALE_CLIENT_SECRET" \
+        --name podpilot-hub-dev \
+        podpilot-hub:dev
+
+check:
+    bun --cwd scripts/ typecheck
+    pnpm run -C crates/podpilot-hub/web typecheck
+    cargo clippy --all-targets --all-features --workspace -- --deny warnings
+
+# Internal: Run frontend (MODE: dev|build)
+_hub-frontend MODE:
+    pnpm run -C crates/podpilot-hub/web {{MODE}}
+
+# Internal: Auto-reloading backend server
+_hub-backend *ARGS:
+    bacon --headless run -- --bin podpilot-hub -- {{ARGS}}
+
+
+# Specify app and CUDA version to run (e.g., "a1111 121", "comfyui cu124", "kohya 128")
 run APP CUDA *DOCKER_ARGS:
     #!/usr/bin/env fish
     set agent_bin (pwd)/target/debug/podpilot-agent
@@ -72,17 +80,13 @@ run APP CUDA *DOCKER_ARGS:
 
     docker run --rm --gpus all $ports $volumes $dev_args $env_args {{DOCKER_ARGS}} $image
 
-# ==============================================
-# AGENT DEVELOPMENT
-# ==============================================
-
 # Build agent binary (debug mode)
-build-agent:
+_build-agent:
     cargo build --bin podpilot-agent
 
 # Agent development workflow: build + bake + run (e.g., just dev-agent a1111 121)
 # CUDA: 121, 124, or 128 (optionally with 'cu' prefix)
-dev-agent APP CUDA: build-agent
+dev-agent APP CUDA: _build-agent
     #!/usr/bin/env fish
     # Strip 'cu' prefix if present for bake target
     set cuda_clean (string replace -r '^cu' '' {{CUDA}})
@@ -99,20 +103,3 @@ bake TARGET="default" *ARGS:
 # Useful when base image changes haven't been pushed to registry yet
 bake-local TARGET="default" *ARGS:
     USE_LOCAL_BASE=1 docker buildx bake {{TARGET}} {{ARGS}}
-
-# Auto-reloading development for both frontend and backend (parallel)
-[parallel]
-dev *ARGS='': frontend (backend ARGS)
-
-# Build Hub Docker image
-build-hub-image:
-    docker buildx build -t podpilot-hub:dev -f crates/podpilot-hub/Dockerfile .
-
-# Run Hub Docker image
-run-hub:
-    docker run --rm -p 8080:8080 \
-    -e DATABASE_URL="$DATABASE_URL" \
-    -e HUB_TAILSCALE_CLIENT_ID="$HUB_TAILSCALE_CLIENT_ID" \
-    -e HUB_TAILSCALE_CLIENT_SECRET="$HUB_TAILSCALE_CLIENT_SECRET" \
-    --name podpilot-hub-dev \
-    podpilot-hub:dev

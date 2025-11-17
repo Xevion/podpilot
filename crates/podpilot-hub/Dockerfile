@@ -2,7 +2,6 @@
 
 # Build arguments
 ARG RUST_VERSION=1.89.0
-ARG RAILWAY_GIT_COMMIT_SHA
 
 # --- Frontend Build Stage ---
 # This stage builds the React frontend assets.
@@ -41,6 +40,9 @@ RUN cargo chef prepare --recipe-path recipe.json --bin podpilot-hub
 # --- Rust Build Stage ---
 # This stage builds the Rust backend binary.
 FROM chef AS builder
+
+# Re-declare build arguments for this stage
+ARG RAILWAY_GIT_COMMIT_SHA=local
 
 # Set build-time environment variable for Railway Git commit SHA
 ENV RAILWAY_GIT_COMMIT_SHA=${RAILWAY_GIT_COMMIT_SHA}
