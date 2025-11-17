@@ -10,7 +10,7 @@ import { spawnBackground } from "./process";
 export class AgentError extends Error {
   constructor(
     message: string,
-    public readonly cause?: Error,
+    public readonly cause?: Error
   ) {
     super(message);
     this.name = "AgentError";
@@ -21,7 +21,10 @@ export class AgentError extends Error {
  * Start the PodPilot agent with proxy configuration.
  * The agent will use the Tailscale SOCKS5/HTTP proxy for all network requests.
  */
-export function startAgent(agentBinPath: string, tailscaleIp: string): Result<Bun.Subprocess, AgentError> {
+export function startAgent(
+  agentBinPath: string,
+  tailscaleIp: string
+): Result<Bun.Subprocess, AgentError> {
   logger.debug("Starting PodPilot agent with proxy configuration", { agentBinPath, tailscaleIp });
 
   const proxyEnv = {

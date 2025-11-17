@@ -33,15 +33,7 @@ const configureLogging = async () => {
   const minLevel = (process.env.LOG_LEVEL as LogLevel) || "info";
 
   // All logger categories used in the system
-  const categories = [
-    "supervisor",
-    "a1111",
-    "comfyui",
-    "fooocus",
-    "kohya",
-    "sshd",
-    "tailscaled",
-  ];
+  const categories = ["supervisor", "a1111", "comfyui", "fooocus", "kohya", "sshd", "tailscaled"];
 
   await configure({
     sinks: {

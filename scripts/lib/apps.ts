@@ -15,7 +15,7 @@ export class AppError extends Error {
   constructor(
     message: string,
     public readonly appType: AppType,
-    public readonly cause?: Error,
+    public readonly cause?: Error
   ) {
     super(message);
     this.name = "AppError";
@@ -104,7 +104,11 @@ export async function launchApp(appType: AppType): Promise<Result<Bun.Subprocess
 
   if (waitResult.isErr) {
     return Result.err(
-      new AppError(`${config.name} did not become ready on port ${config.port}`, appType, waitResult.error)
+      new AppError(
+        `${config.name} did not become ready on port ${config.port}`,
+        appType,
+        waitResult.error
+      )
     );
   }
 

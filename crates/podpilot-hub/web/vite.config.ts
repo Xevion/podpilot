@@ -50,9 +50,9 @@ function getAllowedHosts() {
 
   // Parse comma-separated values, trim, and filter empty strings
   const additionalHosts = envHosts
-    .split(',')
-    .map(host => host.trim())
-    .filter(host => host.length > 0);
+    .split(",")
+    .map((host) => host.trim())
+    .filter((host) => host.length > 0);
 
   // Combine and deduplicate
   return [...new Set([...defaultHosts, ...additionalHosts])];

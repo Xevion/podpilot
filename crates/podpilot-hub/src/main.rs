@@ -39,7 +39,9 @@ async fn main() -> ExitCode {
     );
 
     // Create and initialize the application
-    let app = App::new(config).await.expect("Failed to initialize application");
+    let app = App::new(config)
+        .await
+        .expect("Failed to initialize application");
 
     // Run the application (Axum server + graceful shutdown)
     app.run().await

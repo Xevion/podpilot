@@ -3,7 +3,7 @@ use podpilot_common::protocol::HubMessage;
 use sqlx::PgPool;
 use std::net::IpAddr;
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc};
 use uuid::Uuid;
 
 #[derive(Clone)]

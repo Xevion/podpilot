@@ -7,7 +7,7 @@ use podpilot_common::protocol::{
 use podpilot_common::types::{GpuInfo, ProviderType};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{watch, RwLock};
+use tokio::sync::{RwLock, watch};
 use tokio::time::{interval, timeout};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{debug, error, info, warn};
@@ -132,9 +132,7 @@ impl WsClient {
         // Send registration message
         let registration = self.create_registration_message();
         let registration_json = serde_json::to_string(&registration)?;
-        ws_sender
-            .send(Message::Text(registration_json.into()))
-            .await?;
+        ws_sender.send(Message::Text(registration_json)).await?;
 
         // Wait for registration acknowledgment
         let reg_response = timeout(Duration::from_secs(30), ws_receiver.next())
@@ -143,8 +141,8 @@ impl WsClient {
             .ok_or_else(|| anyhow::anyhow!("Connection closed during registration"))??;
 
         if let Message::Text(text) = reg_response {
-            let hub_msg: HubMessage = serde_json::from_str(&text)
-                .context("Failed to parse registration response")?;
+            let hub_msg: HubMessage =
+                serde_json::from_str(&text).context("Failed to parse registration response")?;
             match hub_msg {
                 HubMessage::RegisterAck(ack) => {
                     self.handle_registration_ack(ack).await?;
@@ -157,7 +155,10 @@ impl WsClient {
                 }
             }
         } else {
-            anyhow::bail!("Expected text message for registration ack, received: {:?}", reg_response);
+            anyhow::bail!(
+                "Expected text message for registration ack, received: {:?}",
+                reg_response
+            );
         }
 
         // Update last heartbeat time
@@ -291,7 +292,7 @@ impl WsClient {
                 });
 
                 let ack_json = serde_json::to_string(&ack)?;
-                ws_sender.send(Message::Text(ack_json.into())).await?;
+                ws_sender.send(Message::Text(ack_json)).await?;
 
                 debug!("sent heartbeat ack");
             }

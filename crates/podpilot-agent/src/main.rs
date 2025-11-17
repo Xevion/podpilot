@@ -36,8 +36,8 @@ async fn main() -> ExitCode {
     };
 
     // Initialize logging based on config
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.log_level));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level));
 
     tracing_subscriber::fmt()
         .with_env_filter(env_filter)

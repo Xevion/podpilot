@@ -181,9 +181,7 @@ async function main(): Promise<void> {
 
       // Wait for process to exit with timeout
       const exitPromise = proc.exited;
-      const timeoutPromise = new Promise<void>((resolve) =>
-        setTimeout(() => resolve(), timeoutMs)
-      );
+      const timeoutPromise = new Promise<void>((resolve) => setTimeout(() => resolve(), timeoutMs));
 
       const result = await Promise.race([
         exitPromise.then(() => "exited"),

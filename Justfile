@@ -4,6 +4,21 @@ set shell := ["fish", "-c"]
 default:
     just --list
 
+check:
+    bun --cwd scripts/ typecheck
+    pnpm run -C crates/podpilot-hub/web typecheck
+    cargo clippy --all-targets --all-features --workspace -- --deny warnings
+
+format:
+    cargo fmt --all
+    bun --cwd scripts/ format
+    pnpm run -C crates/podpilot-hub/web format
+
+format-check:
+    cargo fmt --all -- --check
+    bun --cwd scripts/ format:check
+    pnpm run -C crates/podpilot-hub/web format:check
+
 # Auto-reloading development for both frontend and backend (parallel)
 [parallel]
 hub-dev *ARGS='': (_hub-frontend "dev") (_hub-backend ARGS)
@@ -20,11 +35,6 @@ hub-docker: (bake "hub")
         -e HUB_TAILSCALE_CLIENT_SECRET="$HUB_TAILSCALE_CLIENT_SECRET" \
         --name podpilot-hub-dev \
         podpilot-hub:dev
-
-check:
-    bun --cwd scripts/ typecheck
-    pnpm run -C crates/podpilot-hub/web typecheck
-    cargo clippy --all-targets --all-features --workspace -- --deny warnings
 
 # Internal: Run frontend (MODE: dev|build)
 _hub-frontend MODE:

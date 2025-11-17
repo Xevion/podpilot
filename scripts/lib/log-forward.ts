@@ -167,9 +167,7 @@ const TAILSCALED_INFO_COMBINED = new RegExp(
   TAILSCALED_INFO_PATTERNS.map((p) => `(${p.source})`).join("|")
 );
 
-const A1111_DEBUG_COMBINED = new RegExp(
-  A1111_DEBUG_PATTERNS.map((p) => `(${p.source})`).join("|")
-);
+const A1111_DEBUG_COMBINED = new RegExp(A1111_DEBUG_PATTERNS.map((p) => `(${p.source})`).join("|"));
 
 const PROGRESS_BAR_COMBINED = new RegExp(
   PROGRESS_BAR_PATTERNS.map((p) => `(${p.source})`).join("|")
@@ -228,9 +226,7 @@ function logLine(
   let level: "debug" | "info" | "warn" | "error" = "info";
 
   // Handle multi-line Python tracebacks
-  if (
-    /^\*\*\* Error|^Traceback \(most recent call last\):/.test(processedLine)
-  ) {
+  if (/^\*\*\* Error|^Traceback \(most recent call last\):/.test(processedLine)) {
     inTraceback = true;
     tracebackService = serviceName;
     level = "error";

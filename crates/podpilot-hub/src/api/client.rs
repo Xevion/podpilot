@@ -13,10 +13,10 @@ use tracing::{debug, error, info, trace, warn};
 
 /// Main API client.
 pub struct ApiClient {
+    #[allow(dead_code)]
     http: ClientWithMiddleware,
 }
 
-#[allow(dead_code)]
 impl ApiClient {
     /// Creates a new API client.
     pub fn new() -> Result<Self> {

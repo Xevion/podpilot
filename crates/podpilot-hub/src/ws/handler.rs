@@ -1,5 +1,5 @@
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::Response;
 use futures_util::{SinkExt, StreamExt};
 use podpilot_common::protocol::{AgentMessage, HubMessage, RegisterRequest, RegisterResponse};
@@ -101,16 +101,15 @@ async fn wait_for_registration(
     sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
     state: &AppState,
 ) -> anyhow::Result<Uuid> {
-    use anyhow::{anyhow, Context};
-    use tokio::time::{timeout, Duration};
+    use anyhow::{Context, anyhow};
+    use tokio::time::{Duration, timeout};
 
     // Wait for first message with 30s timeout
     let msg_result = timeout(Duration::from_secs(30), receiver.next())
         .await
         .context("Timeout waiting for registration")?;
 
-    let msg = msg_result
-        .ok_or_else(|| anyhow!("Connection closed before registration"))??;
+    let msg = msg_result.ok_or_else(|| anyhow!("Connection closed before registration"))??;
 
     // Parse the registration message
     let text = match msg {
@@ -118,8 +117,8 @@ async fn wait_for_registration(
         _ => return Err(anyhow!("Expected text message for registration")),
     };
 
-    let agent_msg: AgentMessage = serde_json::from_str(&text)
-        .context("Failed to parse registration message")?;
+    let agent_msg: AgentMessage =
+        serde_json::from_str(&text).context("Failed to parse registration message")?;
 
     match agent_msg {
         AgentMessage::Register(req) => {
@@ -151,11 +150,7 @@ async fn wait_for_registration(
 }
 
 /// Handle incoming agent messages
-async fn handle_agent_message(
-    state: &AppState,
-    agent_id: Uuid,
-    text: &str,
-) -> anyhow::Result<()> {
+async fn handle_agent_message(state: &AppState, agent_id: Uuid, text: &str) -> anyhow::Result<()> {
     let agent_msg: AgentMessage = serde_json::from_str(text)?;
 
     match agent_msg {
@@ -189,10 +184,7 @@ async fn handle_agent_message(
 }
 
 /// Create agent record in the database
-async fn create_agent_record(
-    state: &AppState,
-    req: &RegisterRequest,
-) -> anyhow::Result<Uuid> {
+async fn create_agent_record(state: &AppState, req: &RegisterRequest) -> anyhow::Result<Uuid> {
     use anyhow::Context;
 
     // Convert common types to Hub types for database
@@ -202,8 +194,8 @@ async fn create_agent_record(
         podpilot_common::types::ProviderType::Local => "local",
     };
 
-    let gpu_info_json = serde_json::to_value(&req.gpu_info)
-        .context("Failed to serialize GPU info")?;
+    let gpu_info_json =
+        serde_json::to_value(&req.gpu_info).context("Failed to serialize GPU info")?;
 
     // Use sqlx::query instead of query! macro to avoid type mapping issues
     let agent = sqlx::query_scalar::<_, Uuid>(

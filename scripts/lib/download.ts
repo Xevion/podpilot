@@ -11,7 +11,7 @@ export class DownloadError extends Error {
   constructor(
     message: string,
     public readonly url: string,
-    public readonly statusCode?: number,
+    public readonly statusCode?: number
   ) {
     super(message);
     this.name = "DownloadError";
@@ -36,7 +36,7 @@ const DEFAULT_RETRY_DELAY_MS = 1000; // 1 second
 export async function downloadFile(
   url: string,
   destination: string,
-  options?: DownloadOptions,
+  options?: DownloadOptions
 ): Promise<Result<string, DownloadError>> {
   const timeoutMs = options?.timeoutMs || DEFAULT_TIMEOUT_MS;
   const maxRetries = options?.retries || DEFAULT_RETRIES;
@@ -86,9 +86,7 @@ export async function downloadFile(
   }
 
   // Should never reach here, but TypeScript needs this
-  return Result.err(
-    new DownloadError(`Download failed after ${maxRetries} attempts`, url),
-  );
+  return Result.err(new DownloadError(`Download failed after ${maxRetries} attempts`, url));
 }
 
 /**
@@ -97,7 +95,7 @@ export async function downloadFile(
 async function attemptDownload(
   url: string,
   destination: string,
-  timeoutMs: number,
+  timeoutMs: number
 ): Promise<Result<void, DownloadError>> {
   try {
     // Fetch with timeout
@@ -110,11 +108,7 @@ async function attemptDownload(
     // Check HTTP status
     if (!response.ok) {
       return Result.err(
-        new DownloadError(
-          `HTTP ${response.status}: ${response.statusText}`,
-          url,
-          response.status,
-        ),
+        new DownloadError(`HTTP ${response.status}: ${response.statusText}`, url, response.status)
       );
     }
 
@@ -132,9 +126,7 @@ async function attemptDownload(
 /**
  * Make a file executable (chmod +x).
  */
-async function makeExecutable(
-  filePath: string,
-): Promise<Result<void, DownloadError>> {
+async function makeExecutable(filePath: string): Promise<Result<void, DownloadError>> {
   try {
     await chmod(filePath, 0o755);
     logger.debug("Made file executable", { filePath });
@@ -142,9 +134,7 @@ async function makeExecutable(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error("Failed to make file executable", { filePath, error: errorMessage });
-    return Result.err(
-      new DownloadError(`Failed to chmod file: ${errorMessage}`, filePath),
-    );
+    return Result.err(new DownloadError(`Failed to chmod file: ${errorMessage}`, filePath));
   }
 }
 

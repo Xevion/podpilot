@@ -43,10 +43,6 @@ impl TailscaledHandle {
     fn new(child: Child) -> Self {
         Self { child }
     }
-
-    fn pid(&self) -> u32 {
-        self.child.id()
-    }
 }
 
 impl Drop for TailscaledHandle {
@@ -133,12 +129,9 @@ pub async fn initialize(config: &Config) -> Result<()> {
 
         // Connect to tailnet if OAuth credentials provided
         if let Some(oauth) = config.tailscale.oauth() {
-            connect_to_tailnet(
-                &oauth.client_id,
-                &oauth.client_secret,
-            )
-            .await
-            .context("Failed to connect to Tailscale network with OAuth credentials")?;
+            connect_to_tailnet(&oauth.client_id, &oauth.client_secret)
+                .await
+                .context("Failed to connect to Tailscale network with OAuth credentials")?;
 
             tracing::info!("Initiated connection to Tailscale network");
 
@@ -271,19 +264,18 @@ async fn wait_for_connection() -> Result<()> {
             Ok(status) => {
                 last_backend_state = status.backend_state.clone();
 
-                if status.backend_state == "Running" {
-                    if let Some(ref self_info) = status.self_ {
-                        if !self_info.tailscale_i_ps.is_empty() {
-                            let elapsed = start_time.elapsed();
-                            tracing::debug!(
-                                attempts = attempt,
-                                elapsed_ms = elapsed.as_millis(),
-                                ips = ?self_info.tailscale_i_ps,
-                                "Tailscale is fully connected"
-                            );
-                            return Ok(());
-                        }
-                    }
+                if status.backend_state == "Running"
+                    && let Some(ref self_info) = status.self_
+                    && !self_info.tailscale_i_ps.is_empty()
+                {
+                    let elapsed = start_time.elapsed();
+                    tracing::debug!(
+                        attempts = attempt,
+                        elapsed_ms = elapsed.as_millis(),
+                        ips = ?self_info.tailscale_i_ps,
+                        "Tailscale is fully connected"
+                    );
+                    return Ok(());
                 }
 
                 tracing::debug!(
@@ -319,21 +311,6 @@ async fn wait_for_connection() -> Result<()> {
         timeout_ms,
         last_backend_state
     ))
-}
-
-/// Validate authkey format to prevent command injection
-///
-/// Authkeys should only contain alphanumeric characters, hyphens, and colons.
-fn validate_authkey(authkey: &str) -> Result<()> {
-    if !authkey
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '-' || c == ':')
-    {
-        return Err(anyhow!(
-            "Invalid authkey format: contains disallowed characters"
-        ));
-    }
-    Ok(())
 }
 
 /// Validate hostname format to prevent command injection

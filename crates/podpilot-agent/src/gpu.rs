@@ -25,7 +25,7 @@ pub fn detect_gpu() -> GpuInfo {
 fn detect_nvidia_gpu() -> anyhow::Result<GpuInfo> {
     // Query GPU name
     let name_output = Command::new("nvidia-smi")
-        .args(&["--query-gpu=name", "--format=csv,noheader"])
+        .args(["--query-gpu=name", "--format=csv,noheader"])
         .output()?;
 
     if !name_output.status.success() {
@@ -41,10 +41,7 @@ fn detect_nvidia_gpu() -> anyhow::Result<GpuInfo> {
 
     // Query memory in MB, convert to GB
     let memory_output = Command::new("nvidia-smi")
-        .args(&[
-            "--query-gpu=memory.total",
-            "--format=csv,noheader,nounits",
-        ])
+        .args(["--query-gpu=memory.total", "--format=csv,noheader,nounits"])
         .output()?;
 
     let memory_mb: f32 = String::from_utf8(memory_output.stdout)?
@@ -74,10 +71,7 @@ fn detect_nvidia_gpu() -> anyhow::Result<GpuInfo> {
 
     // Query compute capability
     let capability_output = Command::new("nvidia-smi")
-        .args(&[
-            "--query-gpu=compute_cap",
-            "--format=csv,noheader",
-        ])
+        .args(["--query-gpu=compute_cap", "--format=csv,noheader"])
         .output();
 
     let compute_capability = if let Ok(output) = capability_output {

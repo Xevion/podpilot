@@ -10,7 +10,7 @@ export class ProcessError extends Error {
   constructor(
     message: string,
     public readonly command: string,
-    public readonly exitCode?: number,
+    public readonly exitCode?: number
   ) {
     super(message);
     this.name = "ProcessError";

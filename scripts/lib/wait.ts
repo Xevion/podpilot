@@ -9,7 +9,7 @@ import { logger } from "./logger";
 export class TimeoutError extends Error {
   constructor(
     message: string,
-    public readonly timeoutMs: number,
+    public readonly timeoutMs: number
   ) {
     super(message);
     this.name = "TimeoutError";
@@ -74,7 +74,7 @@ export async function waitForPort(
   return waitFor(
     async () => {
       try {
-        void await Bun.connect({
+        void (await Bun.connect({
           hostname: host,
           port,
           socket: {
@@ -83,7 +83,7 @@ export async function waitForPort(
               socket.end();
             },
           },
-        });
+        }));
         return true;
       } catch {
         return false;

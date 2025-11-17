@@ -6,7 +6,9 @@
   "description": "Boot scripts for PodPilot Docker images",
   "scripts": {
     "start": "bun run boot.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
   },
   "dependencies": {
     "@logtape/logtape": "^1.2.0",
@@ -15,6 +17,7 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.3.6",
     "@types/bun": "latest"
   }
 }

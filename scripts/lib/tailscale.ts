@@ -11,7 +11,7 @@ import { forwardProcessLogs } from "./log-forward";
 export class TailscaleError extends Error {
   constructor(
     message: string,
-    public readonly cause?: Error,
+    public readonly cause?: Error
   ) {
     super(message);
     this.name = "TailscaleError";
@@ -22,10 +22,7 @@ export class TailscaleError extends Error {
  * Capture recent output from a subprocess for error diagnostics.
  * Reads up to the specified number of lines from stderr (and stdout if requested).
  */
-async function captureDaemonLogs(
-  proc: Bun.Subprocess,
-  maxLines: number = 20
-): Promise<string> {
+async function captureDaemonLogs(proc: Bun.Subprocess, maxLines: number = 20): Promise<string> {
   const logs: string[] = [];
 
   try {
@@ -230,9 +227,7 @@ export async function getTailscaleIp(): Promise<Result<string, TailscaleError>> 
 
   if (!proc.success) {
     const stderr = new TextDecoder().decode(proc.stderr);
-    return Result.err(
-      new TailscaleError(`Failed to get Tailscale status: ${stderr.trim()}`)
-    );
+    return Result.err(new TailscaleError(`Failed to get Tailscale status: ${stderr.trim()}`));
   }
 
   try {

@@ -87,6 +87,9 @@ async fn cleanup_stale_agents(state: &AppState) {
         // Remove from connection registry
         state.remove_connection(&agent_id);
 
-        warn!("Marked agent {} as error due to missed heartbeats", agent_id);
+        warn!(
+            "Marked agent {} as error due to missed heartbeats",
+            agent_id
+        );
     }
 }

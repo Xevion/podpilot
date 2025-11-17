@@ -61,7 +61,7 @@ fn default_log_level() -> String {
 
 impl Config {
     /// Load configuration from environment variables
-    pub fn load() -> Result<Self, figment::Error> {
+    pub fn load() -> Result<Self, Box<figment::Error>> {
         Figment::new()
             .merge(Env::raw().map(|k| {
                 // Map environment variable names to struct field names
@@ -77,6 +77,7 @@ impl Config {
                 }
             }))
             .extract()
+            .map_err(Box::new)
     }
 
     /// Get the hostname, using configured value or auto-detecting

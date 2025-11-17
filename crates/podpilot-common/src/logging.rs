@@ -6,10 +6,7 @@ pub fn setup_logging(config: &Config) {
     // Configure logging based on config
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         let base_level = &config.log_level;
-        EnvFilter::new(format!(
-            "warn,podpilot_hub={}",
-            base_level
-        ))
+        EnvFilter::new(format!("warn,podpilot_hub={}", base_level))
     });
 
     let subscriber = FmtSubscriber::builder()

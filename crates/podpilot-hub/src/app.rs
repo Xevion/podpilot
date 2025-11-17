@@ -153,7 +153,7 @@ impl App {
                     SELECT FROM information_schema.tables
                     WHERE table_schema = 'public'
                     AND table_name = $1
-                )"
+                )",
             )
             .bind(table)
             .fetch_one(pool)
@@ -161,7 +161,10 @@ impl App {
             .with_context(|| format!("Failed to check if table '{}' exists", table))?;
 
             if !exists {
-                anyhow::bail!("Critical table '{}' does not exist in database schema", table);
+                anyhow::bail!(
+                    "Critical table '{}' does not exist in database schema",
+                    table
+                );
             }
         }
 
