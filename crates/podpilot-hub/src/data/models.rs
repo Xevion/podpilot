@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json;
+use std::net::IpAddr;
 use uuid::Uuid;
 
 /// Cloud provider or platform type for agent instances
@@ -45,6 +46,7 @@ pub struct Agent {
     pub provider_instance_id: Option<String>,
     pub hostname: String,
     pub status: AgentStatus,
+    pub tailscale_ip: Option<IpAddr>,
     pub gpu_info: Option<Json<serde_json::Value>>,
     pub registered_at: DateTime<Utc>,
     pub last_seen_at: Option<DateTime<Utc>>,

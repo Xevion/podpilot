@@ -65,10 +65,7 @@ async fn health(State(state): State<AppState>) -> impl IntoResponse {
     let tailscale_ip = state.tailscale_ip().await.map(|ip| ip.to_string());
     let connected_agents = state.connection_count();
 
-    let db_status = match sqlx::query_scalar::<_, i32>("SELECT 1")
-        .fetch_one(&state.db)
-        .await
-    {
+    let db_status = match sqlx::query_scalar!("SELECT 1").fetch_one(&state.db).await {
         Ok(_) => "ok",
         Err(_) => "error",
     };

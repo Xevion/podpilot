@@ -1,6 +1,5 @@
 pub mod messages;
 
 pub use messages::{
-    AgentMessage, HeartbeatAckMessage, HeartbeatMessage, HubMessage, RegisterRequest,
-    RegisterResponse,
+    AgentInfo, AgentMessage, AgentRegistration, HeartbeatAckMessage, HeartbeatMessage, HubMessage,
 };

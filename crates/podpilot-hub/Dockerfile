@@ -107,8 +107,8 @@ COPY --from=builder --chown=$APP_USER:$APP_USER --chmod=755 /app/target/release/
 USER $APP_USER
 WORKDIR ${APP}
 
-# Configure port from Railway's environment variable, default to 8080
-ARG PORT=8080
+# Configure port from Railway's environment variable, default to 80
+ARG PORT=80
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 

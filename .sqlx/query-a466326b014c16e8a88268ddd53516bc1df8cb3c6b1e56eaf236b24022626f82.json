@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO agents (\n                provider, provider_instance_id, hostname, status, tailscale_ip, gpu_info,\n                registered_at, last_seen_at\n            )\n            VALUES ($1, $2, $3, 'registering'::agent_status, $4, $5, NOW(), NOW())\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "provider_type",
+            "kind": {
+              "Enum": [
+                "vastai",
+                "runpod",
+                "local"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Inet",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a466326b014c16e8a88268ddd53516bc1df8cb3c6b1e56eaf236b24022626f82"
+}

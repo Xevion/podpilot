@@ -2,9 +2,10 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
 use podpilot_common::protocol::{
-    AgentMessage, HeartbeatAckMessage, HubMessage, RegisterRequest, RegisterResponse,
+    AgentInfo, AgentMessage, AgentRegistration, HeartbeatAckMessage, HubMessage,
 };
 use podpilot_common::types::{GpuInfo, ProviderType};
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{RwLock, watch};
@@ -23,10 +24,10 @@ const RECONNECT_BACKOFF_MULTIPLIER: f64 = 2.0;
 pub struct WsClient {
     hub_url: String,
     provider: ProviderType,
-    provider_instance_id: Option<String>,
+    provider_instance_id: String,
     hostname: String,
     gpu_info: GpuInfo,
-    tailscale_ip: String,
+    tailscale_ip: IpAddr,
     agent_id: Arc<RwLock<Option<Uuid>>>,
     last_heartbeat: Arc<RwLock<DateTime<Utc>>>,
     shutdown_tx: Arc<watch::Sender<bool>>,
@@ -38,10 +39,10 @@ impl WsClient {
     pub fn new(
         hub_url: String,
         provider: ProviderType,
-        provider_instance_id: Option<String>,
+        provider_instance_id: String,
         hostname: String,
         gpu_info: GpuInfo,
-        tailscale_ip: String,
+        tailscale_ip: IpAddr,
     ) -> Self {
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
@@ -239,19 +240,19 @@ impl WsClient {
 
     /// Create registration message
     fn create_registration_message(&self) -> AgentMessage {
-        AgentMessage::Register(RegisterRequest {
+        AgentMessage::Register(AgentInfo {
             correlation_id: Uuid::new_v4(),
             provider: self.provider,
             provider_instance_id: self.provider_instance_id.clone(),
             hostname: self.hostname.clone(),
             gpu_info: self.gpu_info.clone(),
-            tailscale_ip: self.tailscale_ip.clone(),
+            tailscale_ip: self.tailscale_ip,
             agent_version: env!("CARGO_PKG_VERSION").to_string(),
         })
     }
 
     /// Handle registration acknowledgment
-    async fn handle_registration_ack(&self, ack: RegisterResponse) -> Result<()> {
+    async fn handle_registration_ack(&self, ack: AgentRegistration) -> Result<()> {
         let agent_id = ack.agent_id;
         *self.agent_id.write().await = Some(agent_id);
 

@@ -68,10 +68,8 @@ pub struct Config {
     /// e.g. "debug" would be similar to "warn,podpilot_hub=debug,..."
     ///
     /// Valid values are: "trace", "debug", "info", "warn", "error"
-    /// Defaults to "info" if not specified
     #[serde(default = "default_log_level")]
     pub log_level: String,
-    /// Port for the web server (default: 8080)
     #[serde(default = "default_port")]
     pub port: u16,
     /// Database connection URL
@@ -79,7 +77,6 @@ pub struct Config {
     /// Graceful shutdown timeout duration
     ///
     /// Accepts both numeric values (seconds) and duration strings
-    /// Defaults to 8 seconds if not specified
     #[serde(
         default = "default_shutdown_timeout",
         deserialize_with = "deserialize_duration"
@@ -102,9 +99,9 @@ fn default_log_level() -> String {
     "info".to_string()
 }
 
-/// Default port of 8080
+/// Default port of 80
 fn default_port() -> u16 {
-    8080
+    80
 }
 
 /// Default shutdown timeout of 8 seconds

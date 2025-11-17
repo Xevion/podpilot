@@ -2,7 +2,7 @@ use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::Response;
 use futures_util::{SinkExt, StreamExt};
-use podpilot_common::protocol::{AgentMessage, HubMessage, RegisterRequest, RegisterResponse};
+use podpilot_common::protocol::{AgentInfo, AgentMessage, AgentRegistration, HubMessage};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -126,7 +126,7 @@ async fn wait_for_registration(
             let agent_id = create_agent_record(state, &req).await?;
 
             // Send registration acknowledgment
-            let response = HubMessage::RegisterAck(RegisterResponse {
+            let response = HubMessage::RegisterAck(AgentRegistration {
                 correlation_id: req.correlation_id,
                 agent_id,
                 registered_at: chrono::Utc::now(),
@@ -161,14 +161,14 @@ async fn handle_agent_message(state: &AppState, agent_id: Uuid, text: &str) -> a
             );
 
             // Update last_seen_at in database
-            sqlx::query(
+            sqlx::query!(
                 r#"
                 UPDATE agents
                 SET last_seen_at = NOW()
                 WHERE id = $1
                 "#,
+                agent_id
             )
-            .bind(agent_id)
             .execute(&state.db)
             .await?;
         }
@@ -183,38 +183,84 @@ async fn handle_agent_message(state: &AppState, agent_id: Uuid, text: &str) -> a
     Ok(())
 }
 
-/// Create agent record in the database
-async fn create_agent_record(state: &AppState, req: &RegisterRequest) -> anyhow::Result<Uuid> {
+/// Create or update agent record in the database
+///
+/// Checks for an existing agent with the same (tailscale_ip, provider_instance_id).
+/// If found, reuses the existing record and updates its status. Otherwise, creates a new agent.
+async fn create_agent_record(state: &AppState, req: &AgentInfo) -> anyhow::Result<Uuid> {
+    use crate::data::models::ProviderType as HubProviderType;
     use anyhow::Context;
 
     // Convert common types to Hub types for database
-    let provider_str = match req.provider {
-        podpilot_common::types::ProviderType::VastAI => "vastai",
-        podpilot_common::types::ProviderType::Runpod => "runpod",
-        podpilot_common::types::ProviderType::Local => "local",
+    let provider: HubProviderType = match req.provider {
+        podpilot_common::types::ProviderType::VastAI => HubProviderType::VastAI,
+        podpilot_common::types::ProviderType::Runpod => HubProviderType::Runpod,
+        podpilot_common::types::ProviderType::Local => HubProviderType::Local,
     };
 
     let gpu_info_json =
         serde_json::to_value(&req.gpu_info).context("Failed to serialize GPU info")?;
 
-    // Use sqlx::query instead of query! macro to avoid type mapping issues
-    let agent = sqlx::query_scalar::<_, Uuid>(
+    // Check for existing agent by (tailscale_ip, provider_instance_id)
+    let existing_agent = sqlx::query_scalar!(
         r#"
-        INSERT INTO agents (
-            provider, provider_instance_id, hostname, status, gpu_info,
-            registered_at, last_seen_at
-        )
-        VALUES ($1::provider_type, $2, $3, 'registering'::agent_status, $4, NOW(), NOW())
-        RETURNING id
+        SELECT id FROM agents
+        WHERE tailscale_ip = $1
+          AND provider_instance_id = $2
+          AND terminated_at IS NULL
         "#,
+        req.tailscale_ip as _,
+        &req.provider_instance_id
     )
-    .bind(provider_str)
-    .bind(&req.provider_instance_id)
-    .bind(&req.hostname)
-    .bind(gpu_info_json)
-    .fetch_one(&state.db)
+    .fetch_optional(&state.db)
     .await
-    .context("Failed to create agent record")?;
+    .context("Failed to query for existing agent")?;
 
-    Ok(agent)
+    if let Some(agent_id) = existing_agent {
+        // Reuse existing agent - update status, hostname, and timestamp
+        info!("Reusing existing agent record: {}", agent_id);
+
+        sqlx::query!(
+            r#"
+            UPDATE agents
+            SET status = 'registering'::agent_status,
+                hostname = $2,
+                gpu_info = $3,
+                last_seen_at = NOW()
+            WHERE id = $1
+            "#,
+            agent_id,
+            &req.hostname,
+            gpu_info_json
+        )
+        .execute(&state.db)
+        .await
+        .context("Failed to update existing agent record")?;
+
+        Ok(agent_id)
+    } else {
+        // Create new agent
+        info!("Creating new agent record");
+
+        let agent_id = sqlx::query_scalar!(
+            r#"
+            INSERT INTO agents (
+                provider, provider_instance_id, hostname, status, tailscale_ip, gpu_info,
+                registered_at, last_seen_at
+            )
+            VALUES ($1, $2, $3, 'registering'::agent_status, $4, $5, NOW(), NOW())
+            RETURNING id
+            "#,
+            provider as _,
+            &req.provider_instance_id,
+            &req.hostname,
+            req.tailscale_ip as _,
+            gpu_info_json
+        )
+        .fetch_one(&state.db)
+        .await
+        .context("Failed to create agent record")?;
+
+        Ok(agent_id)
+    }
 }

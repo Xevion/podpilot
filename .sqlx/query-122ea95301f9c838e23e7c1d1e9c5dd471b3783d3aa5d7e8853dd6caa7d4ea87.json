@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE agents\n            SET status = 'registering'::agent_status,\n                hostname = $2,\n                gpu_info = $3,\n                last_seen_at = NOW()\n            WHERE id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "122ea95301f9c838e23e7c1d1e9c5dd471b3783d3aa5d7e8853dd6caa7d4ea87"
+}

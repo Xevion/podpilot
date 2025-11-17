@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id\n        FROM agents\n        WHERE status IN ('ready', 'running', 'idle')\n          AND last_seen_at < NOW() - INTERVAL '30 seconds'\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fe56b05c211472ea4d4b03ac64a701506480eeefdcef176cf3bf50b855ceda39"
+}

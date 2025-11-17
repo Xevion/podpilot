@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::net::IpAddr;
 use uuid::Uuid;
 
 use crate::types::{GpuInfo, ProviderType};
@@ -8,7 +9,7 @@ use crate::types::{GpuInfo, ProviderType};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AgentMessage {
-    Register(RegisterRequest),
+    Register(AgentInfo),
     HeartbeatAck(HeartbeatAckMessage),
 }
 
@@ -16,7 +17,7 @@ pub enum AgentMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum HubMessage {
-    RegisterAck(RegisterResponse),
+    RegisterAck(AgentRegistration),
     Heartbeat(HeartbeatMessage),
     Error {
         message: String,
@@ -26,22 +27,21 @@ pub enum HubMessage {
     },
 }
 
-/// Agent registration request
+/// Agent registration information
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegisterRequest {
+pub struct AgentInfo {
     pub correlation_id: Uuid,
     pub provider: ProviderType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub provider_instance_id: Option<String>,
+    pub provider_instance_id: String,
     pub hostname: String,
     pub gpu_info: GpuInfo,
-    pub tailscale_ip: String,
+    pub tailscale_ip: IpAddr,
     pub agent_version: String,
 }
 
-/// Hub registration acknowledgment
+/// Agent registration response
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegisterResponse {
+pub struct AgentRegistration {
     pub correlation_id: Uuid,
     pub agent_id: Uuid,
     pub registered_at: DateTime<Utc>,

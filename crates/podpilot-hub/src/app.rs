@@ -156,17 +156,18 @@ impl App {
         let critical_tables = ["agents", "assets", "models"];
 
         for table in critical_tables {
-            let exists: bool = sqlx::query_scalar(
+            let exists = sqlx::query_scalar!(
                 "SELECT EXISTS (
                     SELECT FROM information_schema.tables
                     WHERE table_schema = 'public'
                     AND table_name = $1
                 )",
+                table
             )
-            .bind(table)
             .fetch_one(pool)
             .await
-            .with_context(|| format!("Failed to check if table '{}' exists", table))?;
+            .with_context(|| format!("Failed to check if table '{}' exists", table))?
+            .unwrap_or(false);
 
             if !exists {
                 anyhow::bail!(

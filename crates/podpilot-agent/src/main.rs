@@ -62,14 +62,23 @@ async fn main() -> ExitCode {
         "GPU detected"
     );
 
+    // Parse Tailscale IP
+    let tailscale_ip = match config.get_tailscale_ip() {
+        Ok(ip) => ip,
+        Err(e) => {
+            error!("Invalid Tailscale IP configuration: {}", e);
+            return ExitCode::FAILURE;
+        }
+    };
+
     // Create WebSocket client
     let ws_client = WsClient::new(
         config.hub_url.clone(),
         config.provider,
-        config.provider_instance_id.clone(),
+        config.get_provider_instance_id(),
         config.get_hostname(),
         gpu_info.clone(),
-        config.tailscale_ip.clone(),
+        tailscale_ip,
     );
 
     // Spawn WebSocket client task

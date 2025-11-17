@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::time::{Duration, interval};
 use tracing::{error, info, warn};
-use uuid::Uuid;
 
 use crate::state::AppState;
 
@@ -38,7 +37,7 @@ pub async fn cleanup_task(state: AppState, shutdown: Arc<AtomicBool>) {
 async fn cleanup_stale_agents(state: &AppState) {
     // Query for agents that haven't sent a heartbeat in 30+ seconds
     // Only check agents that are in active states (not already error/terminated)
-    let result = sqlx::query_scalar::<_, Uuid>(
+    let result = sqlx::query_scalar!(
         r#"
         SELECT id
         FROM agents
@@ -68,15 +67,15 @@ async fn cleanup_stale_agents(state: &AppState) {
 
     for agent_id in stale_agents {
         // Mark agent as error in database
-        if let Err(e) = sqlx::query(
+        if let Err(e) = sqlx::query!(
             r#"
             UPDATE agents
             SET status = 'error'::agent_status,
                 updated_at = NOW()
             WHERE id = $1
             "#,
+            agent_id
         )
-        .bind(agent_id)
         .execute(&state.db)
         .await
         {

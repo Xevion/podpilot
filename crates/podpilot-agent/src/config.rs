@@ -1,17 +1,17 @@
 use figment::{Figment, providers::Env};
 use podpilot_common::types::ProviderType;
 use serde::{Deserialize, Serialize};
+use std::net::IpAddr;
+use uuid::Uuid;
 
 /// Agent configuration loaded from environment variables
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     /// WebSocket URL for Hub connection
-    /// Default: ws://localhost:8080/ws/agent
     #[serde(default = "default_hub_url")]
     pub hub_url: String,
 
     /// Port for agent status API
-    /// Default: 8081
     #[serde(default = "default_status_port")]
     pub status_port: u16,
 
@@ -40,7 +40,7 @@ pub struct Config {
 }
 
 fn default_hub_url() -> String {
-    "ws://localhost:8080/ws/agent".to_string()
+    "ws://localhost:80/ws/agent".to_string()
 }
 
 fn default_status_port() -> u16 {
@@ -87,6 +87,31 @@ impl Config {
                 .unwrap_or_else(|_| std::ffi::OsString::from("unknown"))
                 .to_string_lossy()
                 .to_string()
+        })
+    }
+
+    /// Get the provider instance ID, using configured value or generating a default
+    ///
+    /// For local development agents without a provider instance ID, this generates
+    /// a stable identifier based on the hostname + a random UUID suffix.
+    pub fn get_provider_instance_id(&self) -> String {
+        self.provider_instance_id.clone().unwrap_or_else(|| {
+            let hostname = self.get_hostname();
+            let suffix = Uuid::new_v4().simple().to_string()[..8].to_string();
+            format!("{}-{}", hostname, suffix)
+        })
+    }
+
+    /// Parse and return the Tailscale IP address
+    ///
+    /// Returns an error if the IP address is invalid.
+    pub fn get_tailscale_ip(&self) -> anyhow::Result<IpAddr> {
+        self.tailscale_ip.parse().map_err(|e| {
+            anyhow::anyhow!(
+                "Invalid Tailscale IP address '{}': {}",
+                self.tailscale_ip,
+                e
+            )
         })
     }
 }

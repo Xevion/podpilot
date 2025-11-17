@@ -29,12 +29,62 @@ hub-build: (_hub-frontend "build")
 
 # Build and run Hub Docker image
 hub-docker: (bake "hub")
-    docker run --rm -p 8080:8080 \
+    docker run --rm -p 8080:80 \
         -e DATABASE_URL="$DATABASE_URL" \
         -e HUB_TAILSCALE_CLIENT_ID="$HUB_TAILSCALE_CLIENT_ID" \
         -e HUB_TAILSCALE_CLIENT_SECRET="$HUB_TAILSCALE_CLIENT_SECRET" \
         --name podpilot-hub-dev \
         podpilot-hub:dev
+
+# Create or recreate local Postgres database with Docker (use 'reset' to wipe volume)
+db MODE='':
+    #!/usr/bin/env fish
+    set container_name podpilot-postgres
+    set volume_name podpilot-postgres-data
+
+    # Stop and remove existing container if it exists
+    if docker ps -a -q -f name=^$container_name\$ | grep -q .
+        echo "Removing existing database container..."
+        docker rm -f $container_name
+    end
+
+    # Remove volume if reset mode
+    if test "{{MODE}}" = reset
+        if docker volume ls -q -f name=^$volume_name\$ | grep -q .
+            echo "Removing database volume..."
+            docker volume rm $volume_name
+        end
+    end
+
+    # Find available port in ephemeral range (49152-65535)
+    set port (shuf -i 49152-65535 -n 1)
+    while ss -tlnp 2>/dev/null | grep -q ":$port "
+        set port (shuf -i 49152-65535 -n 1)
+    end
+
+    set db_url "postgresql://podpilot:podpilot@localhost:$port/podpilot"
+
+    # Create new container with named volume and random port
+    echo "Creating new database container on port $port..."
+    docker run -d \
+        --name $container_name \
+        -p $port:5432 \
+        -e POSTGRES_USER=podpilot \
+        -e POSTGRES_PASSWORD=podpilot \
+        -e POSTGRES_DB=podpilot \
+        -v podpilot-postgres-data:/var/lib/postgresql/data \
+        postgres:16-alpine
+
+    # Update .env file (add or replace DATABASE_URL)
+    if grep -q "^DATABASE_URL=" .env
+        sed -i "s|^DATABASE_URL=.*|DATABASE_URL=$db_url|" .env
+        echo "Updated DATABASE_URL in .env"
+    else
+        echo "DATABASE_URL=$db_url" >> .env
+        echo "Added DATABASE_URL to .env"
+    end
+
+    echo "✓ Database ready at $db_url"
 
 # Internal: Run frontend (MODE: dev|build)
 _hub-frontend MODE:
