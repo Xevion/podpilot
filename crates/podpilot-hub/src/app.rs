@@ -40,7 +40,9 @@ impl App {
 
         // Check if the database URL is via private networking
         let is_private = config.database_url.contains("railway.internal");
-        let slow_threshold = if is_private {
+        let slow_threshold = if cfg!(debug_assertions) {
+            Duration::from_secs(1)
+        } else if is_private {
             Duration::from_millis(200)
         } else {
             Duration::from_millis(500)

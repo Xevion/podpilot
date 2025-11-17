@@ -39,6 +39,25 @@ function getVersion() {
 
 const version = getVersion();
 
+// Parse allowed hosts from environment variable
+function getAllowedHosts() {
+  const defaultHosts = ["localhost", "127.0.0.1", "::1"];
+
+  const envHosts = process.env.VITE_ALLOWED_HOSTS;
+  if (!envHosts) {
+    return defaultHosts;
+  }
+
+  // Parse comma-separated values, trim, and filter empty strings
+  const additionalHosts = envHosts
+    .split(',')
+    .map(host => host.trim())
+    .filter(host => host.length > 0);
+
+  // Combine and deduplicate
+  return [...new Set([...defaultHosts, ...additionalHosts])];
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [tanstackRouter({ autoCodeSplitting: true }), viteReact()],
@@ -53,6 +72,8 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    host: "0.0.0.0",
+    allowedHosts: getAllowedHosts(),
     proxy: {
       "/api": {
         target: "http://localhost:8080",
