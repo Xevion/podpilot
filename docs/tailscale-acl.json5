@@ -1,0 +1,28 @@
+{
+  "tagOwners": {
+    "tag:podpilot": ["autogroup:admin"]
+  },
+  "acls": [
+    {
+      // Allow admins to access anything
+      "action": "accept",
+      "src": ["autogroup:admin"],
+      "dst": ["*:*"]
+    },
+    {
+      // Allow PodPilot components to communicate with each other bidirectionally
+      "action": "accept",
+      "src": ["tag:podpilot"],
+      "dst": ["tag:podpilot:*"]
+    }
+  ],
+  "ssh": [
+    {
+      // Allow SSH from admin devices to all PodPilot components
+      "action": "accept",
+      "src": ["autogroup:admin"],
+      "dst": ["tag:podpilot"],
+      "users": ["autogroup:nonroot", "root"]
+    }
+  ]
+}

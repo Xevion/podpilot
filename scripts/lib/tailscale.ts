@@ -260,8 +260,8 @@ export async function getTailscaleIp(): Promise<Result<string, TailscaleError>> 
  */
 export async function initializeTailscale(
   authKey?: string,
-  hostname: string = "podpilot-agent",
-  tags: string = "tag:podpilot-agent"
+  hostname: string = "agent",
+  tags: string = "tag:podpilot"
 ): Promise<Result<{ process: Bun.Subprocess; ip: string }, TailscaleError>> {
   const daemonResult = startTailscaleDaemon();
   if (daemonResult.isErr) {

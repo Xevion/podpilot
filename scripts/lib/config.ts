@@ -71,7 +71,7 @@ export function loadConfig(): Result<Config, ConfigError> {
     tailscale: {
       ...(authKey ? { authKey } : {}),
       hostname: require("os").hostname(),
-      tags: "tag:podpilot-agent",
+      tags: "tag:podpilot",
     },
     agentBin: getEnv("AGENT_BIN") || "/app/podpilot-agent",
     logLevel: getEnv("LOG_LEVEL") || "info",

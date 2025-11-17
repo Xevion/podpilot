@@ -369,8 +369,8 @@ fn validate_tags(tags: &str) -> Result<()> {
 /// The authkey is wrapped in SecretString to prevent accidental logging.
 /// All inputs are validated to prevent command injection attacks.
 async fn connect_to_tailnet(client_id: &SecretString, client_secret: &SecretString) -> Result<()> {
-    const HOSTNAME: &str = "podpilot-hub";
-    const TAGS: &str = "tag:podpilot-hub";
+    const HOSTNAME: &str = "hub-prod";
+    const TAGS: &str = "tag:podpilot";
 
     // Validate all inputs (even hardcoded ones, for defense in depth)
     validate_hostname(HOSTNAME).context("Invalid hostname")?;
