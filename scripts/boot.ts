@@ -160,15 +160,23 @@ async function main(): Promise<void> {
 
   // Handle graceful shutdown
   const shutdown = async (signal: string) => {
-    logger.info(`Shutting down gracefully after ${signal}`);
+    const shutdownStart = performance.now();
+    logger.info("initiating shutdown", { signal });
+
+    // Track per-process shutdown times
+    const shutdownTimings: Record<string, number> = {};
 
     // Helper to kill process with timeout and fallback to SIGKILL
     const killWithTimeout = async (
       proc: Bun.Subprocess,
       name: string,
       timeoutMs: number = 5000
-    ) => {
-      logger.info(`Terminating ${name}`);
+    ): Promise<void> => {
+      const killStart = performance.now();
+      logger.debug("terminating process", {
+        process: name,
+        pid: proc.pid,
+      });
       proc.kill(); // Send SIGTERM
 
       // Wait for process to exit with timeout
@@ -182,32 +190,53 @@ async function main(): Promise<void> {
         timeoutPromise.then(() => "timeout"),
       ]);
 
+      const killDuration = performance.now() - killStart;
+      shutdownTimings[name] = Math.round(killDuration);
+
       if (result === "timeout") {
-        logger.warn(`${name} did not exit gracefully, sending SIGKILL`);
+        logger.warn("process did not exit gracefully, forcing termination", {
+          process: name,
+          pid: proc.pid,
+          signal: "SIGKILL",
+          durationMs: Math.round(killDuration),
+        });
         proc.kill(9); // SIGKILL
         await proc.exited;
+      } else {
+        logger.info("process terminated", {
+          process: name,
+          pid: proc.pid,
+          graceful: true,
+          durationMs: Math.round(killDuration),
+        });
       }
-
-      logger.info(`${name} terminated`);
     };
 
     if (agentProc) await killWithTimeout(agentProc, "agent");
     if (appProc) await killWithTimeout(appProc, "application");
     if (sshdProc) await killWithTimeout(sshdProc, "sshd");
-    if (tailscaleProc) await killWithTimeout(tailscaleProc, "Tailscale");
+    if (tailscaleProc) await killWithTimeout(tailscaleProc, "tailscale");
 
-    logger.info("Shutdown complete");
+    const totalShutdownDuration = performance.now() - shutdownStart;
+    logger.info("shutdown complete", {
+      totalDurationMs: Math.round(totalShutdownDuration),
+      breakdown: shutdownTimings,
+      signal,
+      graceful: true,
+    });
     process.exit(0);
   };
 
   // Signal handlers for graceful shutdown
   process.on("SIGTERM", () => {
     if (!shuttingDown) {
-      logger.info("SIGTERM received, initiating shutdown");
       shuttingDown = true;
       shutdownResolver?.();
       shutdown("SIGTERM").catch((err) => {
-        logger.error("Error during shutdown", { error: err });
+        logger.error("shutdown error", {
+          error: err instanceof Error ? err.message : String(err),
+          errorType: err instanceof Error ? err.name : "unknown",
+        });
         process.exit(1);
       });
     }
@@ -215,11 +244,13 @@ async function main(): Promise<void> {
 
   process.on("SIGINT", () => {
     if (!shuttingDown) {
-      logger.info("SIGINT received, initiating shutdown");
       shuttingDown = true;
       shutdownResolver?.();
       shutdown("SIGINT").catch((err) => {
-        logger.error("Error during shutdown", { error: err });
+        logger.error("shutdown error", {
+          error: err instanceof Error ? err.message : String(err),
+          errorType: err instanceof Error ? err.name : "unknown",
+        });
         process.exit(1);
       });
     }

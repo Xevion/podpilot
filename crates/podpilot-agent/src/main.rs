@@ -3,6 +3,7 @@ use podpilot_agent::{config::Config, gpu, ws::WsClient};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::process::ExitCode;
+use std::time::Instant;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
@@ -23,6 +24,8 @@ async fn get_status() -> Json<StatusResponse> {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    let start_time = Instant::now();
+
     // Load configuration
     let config = match Config::load() {
         Ok(cfg) => cfg,
@@ -89,13 +92,13 @@ async fn main() -> ExitCode {
         Ok(listener) => {
             // Run server with graceful shutdown
             if let Err(error) = axum::serve(listener, app)
-                .with_graceful_shutdown(shutdown_signal())
+                .with_graceful_shutdown(shutdown_signal(start_time))
                 .await
             {
-                error!(error = ?error, "status API server error");
+                error!(error = ?error, "server error");
                 ExitCode::FAILURE
             } else {
-                info!("status API server stopped gracefully");
+                info!("stopped gracefully");
                 ExitCode::SUCCESS
             }
         }
@@ -106,15 +109,24 @@ async fn main() -> ExitCode {
     };
 
     // Shutdown WebSocket client
-    info!("Shutting down WebSocket client");
+    let shutdown_start = Instant::now();
+    let ws_shutdown_start = Instant::now();
     ws_client.shutdown();
     let _ = ws_handle.await;
+    let ws_shutdown_duration = ws_shutdown_start.elapsed().as_millis() as u64;
+
+    info!(
+        total_shutdown_ms = shutdown_start.elapsed().as_millis() as u64,
+        ws_client_ms = ws_shutdown_duration,
+        graceful = true,
+        "shutdown complete"
+    );
 
     result
 }
 
 /// Wait for SIGTERM or SIGINT signal for graceful shutdown
-async fn shutdown_signal() {
+async fn shutdown_signal(start_time: Instant) {
     let ctrl_c = async {
         tokio::signal::ctrl_c()
             .await
@@ -134,10 +146,18 @@ async fn shutdown_signal() {
 
     tokio::select! {
         _ = ctrl_c => {
-            info!("Received Ctrl+C signal");
+            info!(
+                signal = "SIGINT",
+                uptime_secs = start_time.elapsed().as_secs(),
+                "shutdown initiated"
+            );
         }
         _ = terminate => {
-            info!("Received terminate signal");
+            info!(
+                signal = "SIGTERM",
+                uptime_secs = start_time.elapsed().as_secs(),
+                "shutdown initiated"
+            );
         }
     }
 }
