@@ -35,16 +35,14 @@ WORKDIR /app
 FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
+# Migrations specifically left out of this stage to avoid invalidating the cache
 RUN cargo chef prepare --recipe-path recipe.json --bin podpilot-hub
 
 # --- Rust Build Stage ---
 # This stage builds the Rust backend binary.
 FROM chef AS builder
 
-# Re-declare build arguments for this stage
 ARG RAILWAY_GIT_COMMIT_SHA=local
-
-# Set build-time environment variable for Railway Git commit SHA
 ENV RAILWAY_GIT_COMMIT_SHA=${RAILWAY_GIT_COMMIT_SHA}
 
 # Copy recipe from planner and build dependencies
@@ -61,6 +59,7 @@ RUN apt-get update && apt-get install -y \
 # Copy source code and built frontend assets
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
+COPY migrations ./migrations
 COPY --from=frontend-builder /app/web/dist ./crates/podpilot-hub/web/dist
 
 # Build hub binary with embedded assets
