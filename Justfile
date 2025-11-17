@@ -113,3 +113,16 @@ dev-build-hub *ARGS='--tracing pretty': build-frontend
 # Will not notice if either the frontend/backend crashes, but will generally be resistant to stopping on their own.
 [parallel]
 dev *ARGS='': frontend (backend ARGS)
+
+# Build Hub Docker image
+build-hub-image:
+    docker buildx build -t podpilot-hub:dev -f crates/podpilot-hub/Dockerfile .
+
+# Run Hub Docker image
+run-hub:
+    docker run --rm -p 8080:8080 \
+    -e DATABASE_URL="$DATABASE_URL" \
+    -e HUB_TAILSCALE_CLIENT_ID="$HUB_TAILSCALE_CLIENT_ID" \
+    -e HUB_TAILSCALE_CLIENT_SECRET="$HUB_TAILSCALE_CLIENT_SECRET" \
+    --name podpilot-hub-dev \
+    podpilot-hub:dev

@@ -5,7 +5,7 @@
 //! numeric values (interpreted as seconds) and duration strings with units.
 
 use fundu::{DurationParser, TimeUnit};
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::SecretString;
 use serde::{Deserialize, Deserializer};
 use std::time::Duration;
 
@@ -15,10 +15,10 @@ use std::time::Duration;
 #[derive(Debug, Clone, Deserialize)]
 pub struct TailscaleConfig {
     /// OAuth client ID (e.g., "k1AbCd2EfGh3")
-    #[serde(rename = "tailscale_client_id")]
+    #[serde(rename = "hub_tailscale_client_id")]
     pub client_id: Option<SecretString>,
     /// OAuth client secret (e.g., "tskey-client-k1AbCd2EfGh3-123abc")
-    #[serde(rename = "tailscale_client_secret")]
+    #[serde(rename = "hub_tailscale_client_secret")]
     pub client_secret: Option<SecretString>,
 }
 
@@ -57,19 +57,6 @@ impl TailscaleConfig {
 pub struct TailscaleOAuth {
     pub client_id: SecretString,
     pub client_secret: SecretString,
-}
-
-impl TailscaleOAuth {
-    /// Construct the authkey by combining client_id:client_secret
-    ///
-    /// Returns a SecretString to prevent accidental logging of credentials.
-    pub fn authkey(&self) -> SecretString {
-        SecretString::from(format!(
-            "{}:{}",
-            self.client_id.expose_secret(),
-            self.client_secret.expose_secret()
-        ))
-    }
 }
 
 /// Main application configuration containing all sub-configurations

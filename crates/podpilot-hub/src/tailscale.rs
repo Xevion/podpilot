@@ -3,14 +3,14 @@
 //! This module manages the Tailscale daemon lifecycle and provides
 //! functionality to query the node's Tailscale IP address.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use podpilot_common::config::Config;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::net::IpAddr;
 use std::process::{Child, Command};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time::sleep;
@@ -21,7 +21,9 @@ use crate::state::AppState;
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct TailscaleStatus {
-    self_: TailscaleSelf,
+    backend_state: String,
+    #[serde(rename = "Self")]
+    self_: Option<TailscaleSelf>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -83,10 +85,16 @@ fn detect_existing_daemon() -> bool {
     let socket_path = std::path::Path::new("/var/run/tailscale/tailscaled.sock");
 
     if socket_path.exists() {
-        tracing::info!("Detected existing Tailscale daemon at {}", socket_path.display());
+        tracing::info!(
+            "Detected existing Tailscale daemon at {}",
+            socket_path.display()
+        );
         true
     } else {
-        tracing::debug!("No existing Tailscale daemon detected (no socket at {})", socket_path.display());
+        tracing::debug!(
+            "No existing Tailscale daemon detected (no socket at {})",
+            socket_path.display()
+        );
         false
     }
 }
@@ -103,11 +111,8 @@ pub async fn initialize(config: &Config) -> Result<()> {
         // Skip spawning and skip connection (assume host is already connected)
         // The IP updater task will fetch the IP from the existing daemon
     } else {
-        tracing::info!("Spawning Tailscale daemon with userspace networking (container mode)");
-
         // Spawn our own daemon with userspace networking
-        let child = spawn_tailscaled_userspace()
-            .context("Failed to spawn tailscaled daemon")?;
+        let child = spawn_tailscaled_userspace().context("Failed to spawn tailscaled daemon")?;
 
         // Store the process handle for automatic cleanup on Drop
         {
@@ -115,22 +120,34 @@ pub async fn initialize(config: &Config) -> Result<()> {
             *process = Some(TailscaledHandle::new(child));
         }
 
-        // Wait for daemon to be ready
+        // Wait for daemon to initialize (socket creation + backend startup)
+        tracing::debug!("Waiting 2 seconds for Tailscale daemon to initialize");
+        sleep(Duration::from_secs(2)).await;
+
+        // Wait for daemon to be ready to accept commands
         wait_for_daemon_ready()
             .await
             .context("Tailscale daemon failed to become ready")?;
 
-        tracing::info!("Tailscale daemon is ready");
+        tracing::info!("Tailscale daemon is ready (responsive to commands)");
 
         // Connect to tailnet if OAuth credentials provided
         if let Some(oauth) = config.tailscale.oauth() {
-            let authkey = oauth.authkey();
+            connect_to_tailnet(
+                &oauth.client_id,
+                &oauth.client_secret,
+            )
+            .await
+            .context("Failed to connect to Tailscale network with OAuth credentials")?;
 
-            connect_to_tailnet(&authkey)
+            tracing::info!("Initiated connection to Tailscale network");
+
+            // Wait for full authentication and connection
+            wait_for_connection()
                 .await
-                .context("Failed to connect to Tailscale network with OAuth credentials")?;
+                .context("Tailscale failed to fully authenticate and connect")?;
 
-            tracing::info!("Connected to Tailscale network with OAuth credentials");
+            tracing::info!("Successfully connected to Tailscale network with OAuth credentials");
         } else {
             tracing::warn!(
                 "No OAuth credentials provided (HUB_TAILSCALE_CLIENT_ID/HUB_TAILSCALE_CLIENT_SECRET), \
@@ -159,21 +176,59 @@ fn spawn_tailscaled_userspace() -> Result<Child> {
     Ok(child)
 }
 
-/// Wait for the Tailscale daemon to be ready by checking CLI availability
+/// Wait for the Tailscale daemon to be ready to accept commands
+///
+/// "Ready" means the daemon responds to `tailscale status --json` with a successful exit code.
+/// The --json flag ensures exit code 0 even when not authenticated (NeedsLogin state).
+/// This does NOT mean the daemon is authenticated or connected to a tailnet.
 async fn wait_for_daemon_ready() -> Result<()> {
-    let max_attempts = 30;
-    let poll_interval = Duration::from_millis(500);
+    let max_attempts = 50;
+    let poll_interval = Duration::from_millis(200);
+    let start_time = std::time::Instant::now();
+    let mut last_error = String::new();
 
-    tracing::debug!("Waiting for Tailscale daemon to become ready");
+    tracing::debug!("Waiting for Tailscale daemon to become ready (responsive to commands)");
 
     for attempt in 1..=max_attempts {
-        match fetch_tailscale_status().await {
-            Ok(_) => {
-                tracing::debug!(attempts = attempt, "Tailscale daemon is ready");
+        let result = tokio::process::Command::new("tailscale")
+            .args(["status", "--json"])
+            .output()
+            .await;
+
+        match result {
+            Ok(output) if output.status.success() => {
+                let elapsed = start_time.elapsed();
+                tracing::debug!(
+                    attempts = attempt,
+                    elapsed_ms = elapsed.as_millis(),
+                    "Tailscale daemon is ready"
+                );
                 return Ok(());
             }
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                last_error = format!(
+                    "Command failed with exit code {:?}\nstdout: {}\nstderr: {}",
+                    output.status.code(),
+                    stdout.trim(),
+                    stderr.trim()
+                );
+                tracing::debug!(
+                    attempt,
+                    max_attempts,
+                    error = %last_error,
+                    "Daemon not ready yet"
+                );
+            }
             Err(e) => {
-                tracing::trace!(attempt, error = %e, "Daemon not ready yet");
+                last_error = format!("Failed to execute tailscale command: {}", e);
+                tracing::debug!(
+                    attempt,
+                    max_attempts,
+                    error = %last_error,
+                    "Daemon not ready yet"
+                );
             }
         }
 
@@ -182,9 +237,87 @@ async fn wait_for_daemon_ready() -> Result<()> {
         }
     }
 
+    let elapsed = start_time.elapsed();
+    let timeout_ms = max_attempts * poll_interval.as_millis() as u32;
+
+    let mut error_msg = format!(
+        "Tailscale daemon did not become ready after {} attempts ({} ms elapsed, {} ms timeout)",
+        max_attempts,
+        elapsed.as_millis(),
+        timeout_ms
+    );
+
+    if !last_error.is_empty() {
+        error_msg.push_str(&format!("\n\nLast error: {}", last_error));
+    }
+
+    Err(anyhow!(error_msg))
+}
+
+/// Wait for Tailscale to be fully connected and authenticated
+///
+/// Polls until BackendState is "Running" and the node has Tailscale IPs assigned.
+/// This should be called after `tailscale up` to ensure full authentication.
+async fn wait_for_connection() -> Result<()> {
+    let max_attempts = 60;
+    let poll_interval = Duration::from_millis(500);
+    let start_time = std::time::Instant::now();
+    let mut last_backend_state = String::new();
+
+    tracing::debug!("Waiting for Tailscale to connect and authenticate");
+
+    for attempt in 1..=max_attempts {
+        match fetch_tailscale_status().await {
+            Ok(status) => {
+                last_backend_state = status.backend_state.clone();
+
+                if status.backend_state == "Running" {
+                    if let Some(ref self_info) = status.self_ {
+                        if !self_info.tailscale_i_ps.is_empty() {
+                            let elapsed = start_time.elapsed();
+                            tracing::debug!(
+                                attempts = attempt,
+                                elapsed_ms = elapsed.as_millis(),
+                                ips = ?self_info.tailscale_i_ps,
+                                "Tailscale is fully connected"
+                            );
+                            return Ok(());
+                        }
+                    }
+                }
+
+                tracing::debug!(
+                    attempt,
+                    max_attempts,
+                    backend_state = %status.backend_state,
+                    has_self = status.self_.is_some(),
+                    "Waiting for connection"
+                );
+            }
+            Err(e) => {
+                tracing::debug!(
+                    attempt,
+                    max_attempts,
+                    error = %e,
+                    "Failed to fetch status while waiting for connection"
+                );
+            }
+        }
+
+        if attempt < max_attempts {
+            sleep(poll_interval).await;
+        }
+    }
+
+    let elapsed = start_time.elapsed();
+    let timeout_ms = max_attempts * poll_interval.as_millis() as u32;
+
     Err(anyhow!(
-        "Tailscale daemon did not become ready after {} attempts",
-        max_attempts
+        "Tailscale did not connect after {} attempts ({} ms elapsed, {} ms timeout). Last state: {}",
+        max_attempts,
+        elapsed.as_millis(),
+        timeout_ms,
+        last_backend_state
     ))
 }
 
@@ -235,7 +368,7 @@ fn validate_tags(tags: &str) -> Result<()> {
 /// Hostname and tags are hardcoded for Hub deployment.
 /// The authkey is wrapped in SecretString to prevent accidental logging.
 /// All inputs are validated to prevent command injection attacks.
-async fn connect_to_tailnet(authkey: &SecretString) -> Result<()> {
+async fn connect_to_tailnet(client_id: &SecretString, client_secret: &SecretString) -> Result<()> {
     const HOSTNAME: &str = "podpilot-hub";
     const TAGS: &str = "tag:podpilot-hub";
 
@@ -243,16 +376,19 @@ async fn connect_to_tailnet(authkey: &SecretString) -> Result<()> {
     validate_hostname(HOSTNAME).context("Invalid hostname")?;
     validate_tags(TAGS).context("Invalid tags")?;
 
-    let authkey_value = authkey.expose_secret();
-    validate_authkey(authkey_value).context("Invalid authkey")?;
-
-    tracing::debug!(hostname = HOSTNAME, tags = TAGS, "Connecting to Tailscale network");
+    tracing::debug!(
+        hostname = HOSTNAME,
+        tags = TAGS,
+        "Connecting to Tailscale network"
+    );
 
     // Use separate arguments instead of format! to avoid shell injection
     let output = Command::new("tailscale")
         .arg("up")
-        .arg("--authkey")
-        .arg(authkey_value)
+        .arg("--client-id")
+        .arg(client_id.expose_secret())
+        .arg("--client-secret")
+        .arg(client_secret.expose_secret())
         .arg("--hostname")
         .arg(HOSTNAME)
         .arg("--advertise-tags")
@@ -293,8 +429,12 @@ async fn fetch_tailscale_status() -> Result<TailscaleStatus> {
 
 /// Extract the Tailscale IP address from the status response
 fn extract_tailscale_ip(status: &TailscaleStatus) -> Result<IpAddr> {
-    status
+    let self_info = status
         .self_
+        .as_ref()
+        .ok_or_else(|| anyhow!("Tailscale not authenticated (Self is null)"))?;
+
+    self_info
         .tailscale_i_ps
         .first()
         .copied()
@@ -307,7 +447,10 @@ pub async fn tailscale_ip_updater_task(
     interval: Duration,
     shutdown: Arc<AtomicBool>,
 ) {
-    tracing::info!(interval_secs = interval.as_secs(), "Starting Tailscale IP updater task");
+    tracing::info!(
+        interval_secs = interval.as_secs(),
+        "Starting Tailscale IP updater task"
+    );
 
     loop {
         // Try to fetch and update the Tailscale IP

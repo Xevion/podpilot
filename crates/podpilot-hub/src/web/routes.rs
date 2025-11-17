@@ -66,11 +66,31 @@ async fn health(State(state): State<AppState>) -> impl IntoResponse {
     let tailscale_ip = state.tailscale_ip().await.map(|ip| ip.to_string());
     let connected_agents = state.connection_count();
 
-    Json(serde_json::json!({
-        "status": "ok",
-        "tailscale_ip": tailscale_ip,
-        "connected_agents": connected_agents,
-    }))
+    let db_status = match sqlx::query_scalar::<_, i32>("SELECT 1")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(_) => "ok",
+        Err(_) => "error",
+    };
+
+    let is_healthy = db_status == "ok";
+    let overall_status = if is_healthy { "healthy" } else { "unhealthy" };
+    let status_code = if is_healthy {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (
+        status_code,
+        Json(serde_json::json!({
+            "status": overall_status,
+            "database": db_status,
+            "tailscale_ip": tailscale_ip,
+            "connected_agents": connected_agents,
+        })),
+    )
 }
 
 /// Creates the web server router

@@ -1,7 +1,5 @@
 use crate::state::AppState;
 use crate::web::create_router;
-use figment::value::UncasedStr;
-use figment::{Figment, providers::Env};
 use podpilot_common::config::Config;
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
@@ -19,19 +17,7 @@ pub struct App {
 
 impl App {
     /// Create a new App instance with all necessary components initialized
-    pub async fn new() -> Result<Self, anyhow::Error> {
-        // Load configuration
-        let config: Config = Figment::new()
-            .merge(Env::raw().map(|k| {
-                if k == UncasedStr::new("RAILWAY_DEPLOYMENT_DRAINING_SECONDS") {
-                    "SHUTDOWN_TIMEOUT".into()
-                } else {
-                    k.into()
-                }
-            }))
-            .extract()
-            .expect("Failed to load config");
-
+    pub async fn new(config: Config) -> Result<Self, anyhow::Error> {
         // Validate Tailscale configuration (both credentials present or both absent)
         config
             .tailscale
@@ -48,7 +34,6 @@ impl App {
             Duration::from_millis(500)
         };
 
-        // Create database connection pool
         let db_pool = PgPoolOptions::new()
             .min_connections(0)
             .max_connections(4)
@@ -56,7 +41,8 @@ impl App {
             .acquire_timeout(Duration::from_secs(4))
             .idle_timeout(Duration::from_secs(60 * 2))
             .max_lifetime(Duration::from_secs(60 * 30))
-            .connect_lazy(&config.database_url)
+            .connect(&config.database_url)
+            .await
             .expect("Failed to create database pool");
 
         info!(
@@ -64,6 +50,10 @@ impl App {
             slow_threshold = format!("{:.2?}", slow_threshold),
             "database pool established"
         );
+
+        Self::validate_database_schema(&db_pool)
+            .await
+            .expect("Database schema validation failed");
 
         let app_state = AppState::new(db_pool.clone());
 
@@ -149,5 +139,33 @@ impl App {
     #[allow(dead_code)]
     pub fn app_state(&self) -> &AppState {
         &self.state
+    }
+
+    /// Validate that critical database tables exist
+    async fn validate_database_schema(pool: &sqlx::PgPool) -> Result<(), anyhow::Error> {
+        use anyhow::Context;
+
+        let critical_tables = ["agents", "assets", "models"];
+
+        for table in critical_tables {
+            let exists: bool = sqlx::query_scalar(
+                "SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                    AND table_name = $1
+                )"
+            )
+            .bind(table)
+            .fetch_one(pool)
+            .await
+            .with_context(|| format!("Failed to check if table '{}' exists", table))?;
+
+            if !exists {
+                anyhow::bail!("Critical table '{}' does not exist in database schema", table);
+            }
+        }
+
+        info!("Database schema validation passed");
+        Ok(())
     }
 }
