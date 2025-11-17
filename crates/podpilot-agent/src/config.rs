@@ -11,7 +11,7 @@ pub struct Config {
     #[serde(default = "default_hub_url")]
     pub hub_url: String,
 
-    /// Port for agent status API
+    /// Port for agent HTTP status API (default: 80, use 8080 for local dev)
     #[serde(default = "default_status_port")]
     pub status_port: u16,
 
@@ -44,7 +44,7 @@ fn default_hub_url() -> String {
 }
 
 fn default_status_port() -> u16 {
-    8081
+    80
 }
 
 fn default_provider() -> ProviderType {

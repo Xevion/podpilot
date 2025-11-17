@@ -32,7 +32,7 @@ WORKDIR /app
 FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
-# Migrations specifically left out of this stage to avoid invalidating the cache
+# Migrations & .sqlx specifically left out of this stage to avoid invalidating the cache
 RUN cargo chef prepare --recipe-path recipe.json --bin podpilot-hub
 
 # --- Rust Build Stage ---
@@ -57,6 +57,7 @@ RUN apt-get update && apt-get install -y \
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY migrations ./migrations
+COPY .sqlx ./.sqlx
 COPY --from=frontend-builder /app/web/dist ./crates/podpilot-hub/web/dist
 
 # Build hub binary with embedded assets

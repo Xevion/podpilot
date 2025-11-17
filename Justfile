@@ -29,8 +29,13 @@ hub-build: (_hub-frontend "build")
 
 # Build and run Hub Docker image
 hub-docker: (bake "hub")
+    #!/usr/bin/env fish
+    # Transform DATABASE_URL: localhost:PORT → podpilot-postgres:5432 for Docker networking
+    set docker_db_url (string replace -r 'localhost:\d+' 'podpilot-postgres:5432' -- $DATABASE_URL)
+
     docker run --rm -p 8080:80 \
-        -e DATABASE_URL="$DATABASE_URL" \
+        --network podpilot \
+        -e DATABASE_URL="$docker_db_url" \
         -e HUB_TAILSCALE_CLIENT_ID="$HUB_TAILSCALE_CLIENT_ID" \
         -e HUB_TAILSCALE_CLIENT_SECRET="$HUB_TAILSCALE_CLIENT_SECRET" \
         --name podpilot-hub-dev \
@@ -41,6 +46,13 @@ db MODE='':
     #!/usr/bin/env fish
     set container_name podpilot-postgres
     set volume_name podpilot-postgres-data
+    set network_name podpilot
+
+    # Create network if it doesn't exist
+    if not docker network ls -q -f name=^$network_name\$ | grep -q .
+        echo "Creating Docker network: $network_name"
+        docker network create $network_name
+    end
 
     # Stop and remove existing container if it exists
     if docker ps -a -q -f name=^$container_name\$ | grep -q .
@@ -68,6 +80,7 @@ db MODE='':
     echo "Creating new database container on port $port..."
     docker run -d \
         --name $container_name \
+        --network $network_name \
         -p $port:5432 \
         -e POSTGRES_USER=podpilot \
         -e POSTGRES_PASSWORD=podpilot \
@@ -92,7 +105,7 @@ _hub-frontend MODE:
 
 # Internal: Auto-reloading backend server
 _hub-backend *ARGS:
-    bacon --headless run -- --bin podpilot-hub -- {{ARGS}}
+    PORT=8080 bacon --headless run -- --bin podpilot-hub -- {{ARGS}}
 
 
 # Specify app and CUDA version to run (e.g., "a1111 121", "comfyui cu124", "kohya 128")
@@ -118,13 +131,13 @@ run APP CUDA *DOCKER_ARGS:
 
     switch {{APP}}
         case a1111 fooocus
-            set ports -p 7860:7860 -p 8081:8081
+            # set ports -p 7860:7860 -p 80:80
             set volumes -v podpilot-models:/app/stable-diffusion-webui/models -v podpilot-hf-cache:/workspace/huggingface
         case comfyui
-            set ports -p 8188:8188 -p 8189:8189
+            # set ports -p 8188:8188 -p 8189:8189 -p 80:80
             set volumes -v podpilot-models:/app/models -v podpilot-comfyui-cache:/workspace/comfyui
         case kohya
-            set ports -p 7860:7860
+            # set ports -p 7860:7860 -p 80:80
             set volumes -v podpilot-models:/app/models -v podpilot-hf-cache:/workspace/huggingface
         case '*'
             echo "Unknown app: {{APP}}"
