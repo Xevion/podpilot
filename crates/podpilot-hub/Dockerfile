@@ -5,10 +5,7 @@ ARG RUST_VERSION=1.89.0
 
 # --- Frontend Build Stage ---
 # This stage builds the React frontend assets.
-FROM node:22-bookworm-slim AS frontend-builder
-
-# Install pnpm for package management
-RUN npm install -g pnpm
+FROM oven/bun:1 AS frontend-builder
 
 WORKDIR /app
 
@@ -16,16 +13,16 @@ WORKDIR /app
 COPY ./Cargo.toml ./Cargo.toml
 
 # Copy frontend package files from the hub's web directory
-COPY ./crates/podpilot-hub/web/package.json ./crates/podpilot-hub/web/pnpm-lock.yaml ./web/
+COPY ./crates/podpilot-hub/web/package.json ./crates/podpilot-hub/web/bun.lock ./web/
 
 # Install frontend dependencies
-RUN pnpm -C web install --frozen-lockfile
+RUN bun install --cwd web --frozen-lockfile
 
 # Copy frontend source code
 COPY ./crates/podpilot-hub/web ./web
 
 # Build frontend assets
-RUN pnpm -C web run build
+RUN bun --cwd web build
 
 # --- Chef Base Stage ---
 FROM lukemathwalker/cargo-chef:latest-rust-${RUST_VERSION} AS chef

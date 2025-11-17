@@ -6,18 +6,18 @@ default:
 
 check:
     bun --cwd scripts/ typecheck
-    pnpm run -C crates/podpilot-hub/web typecheck
+    bun --cwd crates/podpilot-hub/web typecheck
     cargo clippy --all-targets --all-features --workspace -- --deny warnings
 
 format:
     cargo fmt --all
     bun --cwd scripts/ format
-    pnpm run -C crates/podpilot-hub/web format
+    bun --cwd crates/podpilot-hub/web format
 
 format-check:
     cargo fmt --all -- --check
     bun --cwd scripts/ format:check
-    pnpm run -C crates/podpilot-hub/web format:check
+    bun --cwd crates/podpilot-hub/web format:check
 
 # Auto-reloading development for both frontend and backend (parallel)
 [parallel]
@@ -38,7 +38,7 @@ hub-docker: (bake "hub")
 
 # Internal: Run frontend (MODE: dev|build)
 _hub-frontend MODE:
-    pnpm run -C crates/podpilot-hub/web {{MODE}}
+    bun --cwd crates/podpilot-hub/web {{MODE}}
 
 # Internal: Auto-reloading backend server
 _hub-backend *ARGS:
