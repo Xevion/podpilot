@@ -10,6 +10,7 @@ function getVersion() {
   const paths = [
     resolve(__dirname, filename),
     resolve(__dirname, "..", filename),
+    resolve(__dirname, "..", "..", "..", filename), // workspace root
   ];
 
   for (const path of paths) {
