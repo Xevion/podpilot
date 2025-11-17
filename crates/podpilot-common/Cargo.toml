@@ -21,3 +21,5 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 secrecy = { version = "0.10", features = ["serde"] }
+time = { version = "0.3", features = ["macros"] }
+yansi = "1.0"

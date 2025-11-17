@@ -1664,9 +1664,11 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
+ "time",
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "yansi",
 ]
 
 [[package]]
@@ -1696,13 +1698,10 @@ dependencies = [
  "serde_path_to_error",
  "sqlx",
  "thiserror 2.0.16",
- "time",
  "tokio",
  "tower-http",
  "tracing",
- "tracing-subscriber",
  "uuid",
- "yansi",
 ]
 
 [[package]]

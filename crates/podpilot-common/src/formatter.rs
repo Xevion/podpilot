@@ -78,7 +78,7 @@ where
             }
         }
 
-        // 4) Target (dimmed), then a space
+        // 4) target (dimmed), then a space
         if writer.has_ansi_escapes() {
             write!(writer, "{}: ", Paint::new(meta.target()).dim())?;
         } else {

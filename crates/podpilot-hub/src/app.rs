@@ -51,6 +51,14 @@ impl App {
             "database pool established"
         );
 
+        // Run database migrations automatically
+        info!("running database migrations");
+        sqlx::migrate!("../../migrations")
+            .run(&db_pool)
+            .await
+            .expect("Failed to run database migrations");
+        info!("database migrations completed successfully");
+
         Self::validate_database_schema(&db_pool)
             .await
             .expect("Database schema validation failed");

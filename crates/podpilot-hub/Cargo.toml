@@ -24,7 +24,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["json"] }
 async-trait = "0.1"
 # bitflags = { version = "2.9", features = ["serde"] }
 # cookie = "0.18"
@@ -42,7 +41,6 @@ sqlx = { version = "0.8", features = [
     "uuid",
 ] }
 thiserror = "2.0"
-time = "0.3"
 # tl = "0.7"
 # url = "2.5"
 # governor = "0.10.1"
@@ -54,6 +52,5 @@ rust-embed = { version = "8.0", features = ["debug-embed", "include-exclude"] }
 mime_guess = "2.0"
 clap = { version = "4.5", features = ["derive"] }
 rapidhash = "4.1"
-yansi = "1.0"
 uuid = { version = "1.18.1", features = ["v4", "serde"] }
 secrecy = { version = "0.10", features = ["serde"] }
